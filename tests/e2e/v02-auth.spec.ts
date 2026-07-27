@@ -39,6 +39,12 @@ test("invalid email callback provides a recovery path", async ({ page }) => {
   await expect(page.getByRole("link", { name: "重新申请密码重置" })).toBeVisible();
 });
 
+test("invalid token-hash recovery link returns to password recovery", async ({ page }) => {
+  await page.goto("/auth/confirm?type=recovery&next=/auth/update-password");
+  await expect(page).toHaveURL(/\/forgot-password\?error=/);
+  await expect(page.getByText("密码重置链接无效、已过期或已经使用，请重新申请。")).toBeVisible();
+});
+
 test("mobile auth page has no horizontal page overflow", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Mobile-only layout assertion");
   await page.goto("/login");

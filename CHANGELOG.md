@@ -7,6 +7,7 @@
 - Added Supabase SSR cookie sessions and Next.js 16 route protection.
 - Added email/password signup, login, Magic Link, password reset, and sign out.
 - Added a universal Supabase email callback for PKCE, token-hash and fragment flows.
+- Switched password recovery to server-side token-hash verification for cross-device reliability.
 - Separated public authentication pages from the protected Project OS workspace.
 - Updated settings to distinguish cloud identity from the pending data migration.
 
