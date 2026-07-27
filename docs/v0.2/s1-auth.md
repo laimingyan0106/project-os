@@ -12,6 +12,8 @@ Date: 2026-07-27
 - Password reset and password update flow.
 - Universal email callback support for PKCE codes, token hashes, and default
   URL-fragment sessions.
+- Device-independent password recovery using a one-time implicit recovery
+  session that is immediately persisted to cookies and removed from the URL.
 - Explicit sign-out control and authenticated account indicator.
 - Public auth pages separated from the protected workspace route group.
 

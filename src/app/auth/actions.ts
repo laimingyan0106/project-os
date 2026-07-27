@@ -1,5 +1,6 @@
 "use server";
 
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -10,6 +11,7 @@ import {
   updatePasswordSchema,
   type AuthActionState,
 } from "@/lib/auth";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
 async function getRequestOrigin() {
@@ -113,7 +115,15 @@ export async function forgotPasswordAction(
     return { status: "error", fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  const supabase = await createClient();
+  const { url, publishableKey } = getSupabaseConfig();
+  const supabase = createSupabaseClient(url, publishableKey, {
+    auth: {
+      flowType: "implicit",
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
   const origin = await getRequestOrigin();
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${origin}/auth/callback?next=/auth/update-password`,
