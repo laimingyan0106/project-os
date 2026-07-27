@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { CircleAlert, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 
 const emailOtpTypes = new Set<EmailOtpType>([
   "email",
@@ -25,34 +26,34 @@ export function AuthCallback({ nextPath }: { nextPath: string }) {
     let active = true;
 
     async function completeAuthentication() {
-      const supabase = createClient();
       const search = new URLSearchParams(window.location.search);
       const hash = new URLSearchParams(window.location.hash.slice(1));
-      const code = search.get("code");
       const tokenHash = search.get("token_hash");
       const otpType = search.get("type");
-      const accessToken = hash.get("access_token");
-      const refreshToken = hash.get("refresh_token");
-      const recoveryFlow = (hash.get("type") ?? otpType) === "recovery";
+      const implicitFlow = hash.has("access_token") && hash.has("refresh_token");
+      const callbackErrorCode = search.get("error_code") ?? hash.get("error_code");
+      const { url, publishableKey } = getSupabaseConfig();
+      const supabase = createBrowserClient(url, publishableKey, {
+        isSingleton: false,
+        auth: {
+          flowType: implicitFlow ? "implicit" : "pkce",
+          detectSessionInUrl: true,
+        },
+      });
 
       let authError: Error | null = null;
 
-      if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        authError = exchangeError;
+      if (callbackErrorCode) {
+        authError = new Error(callbackErrorCode);
       } else if (tokenHash && otpType && emailOtpTypes.has(otpType as EmailOtpType)) {
         const { error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
           type: otpType as EmailOtpType,
         });
         authError = verifyError;
-      } else if (accessToken && refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        authError = sessionError;
       } else {
+        // The callback-only client owns exactly one URL exchange. getSession()
+        // waits for initialization to finish before returning the persisted session.
         const {
           data: { session },
           error: sessionError,
@@ -68,7 +69,7 @@ export function AuthCallback({ nextPath }: { nextPath: string }) {
         return;
       }
 
-      router.replace(recoveryFlow ? "/auth/update-password" : nextPath);
+      router.replace(nextPath);
       router.refresh();
     }
 
