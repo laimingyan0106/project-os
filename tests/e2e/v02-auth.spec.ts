@@ -30,6 +30,15 @@ test("signup validates credentials before contacting Supabase", async ({ page })
   await expect(page.getByText("两次输入的密码不一致")).toBeVisible();
 });
 
+test("invalid email callback provides a recovery path", async ({ page }) => {
+  await page.goto("/auth/callback");
+  await expect(page.getByRole("heading", { name: "正在验证安全链接" })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "登录链接无效、已过期或已经使用" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "重新申请密码重置" })).toBeVisible();
+});
+
 test("mobile auth page has no horizontal page overflow", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Mobile-only layout assertion");
   await page.goto("/login");

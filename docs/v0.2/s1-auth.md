@@ -10,6 +10,8 @@ Date: 2026-07-27
 - Email/password signup and login.
 - Magic Link login for existing users.
 - Password reset and password update flow.
+- Universal email callback support for PKCE codes, token hashes, and default
+  URL-fragment sessions.
 - Explicit sign-out control and authenticated account indicator.
 - Public auth pages separated from the protected workspace route group.
 
