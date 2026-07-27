@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addEdge, applyEdgeChanges, applyNodeChanges, Background, BackgroundVariant, Controls,
   MiniMap, Panel, ReactFlow, type Connection, type EdgeChange, type Node, type NodeChange,
@@ -25,6 +25,8 @@ export function WorkflowView() {
   const { workflow, saveWorkflow } = useProjectOS();
   const [nodes, setNodes] = useState(workflow.nodes);
   const [edges, setEdges] = useState(workflow.edges);
+  const nodesRef = useRef(workflow.nodes);
+  const edgesRef = useRef(workflow.edges);
   const [draft, setDraft] = useState<WorkflowNodeData | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -35,35 +37,34 @@ export function WorkflowView() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNodes(workflow.nodes);
     setEdges(workflow.edges);
+    nodesRef.current = workflow.nodes;
+    edgesRef.current = workflow.edges;
   }, [workflow]);
 
-  const persist = useCallback((nextNodes = nodes, nextEdges = edges) => {
+  const persist = useCallback((nextNodes: typeof nodes, nextEdges: typeof edges) => {
     saveWorkflow({ ...workflow, nodes: nextNodes, edges: nextEdges });
-  }, [edges, nodes, saveWorkflow, workflow]);
+  }, [saveWorkflow, workflow]);
 
   const onNodesChange = useCallback((changes: NodeChange<AppNode>[]) => {
-    setNodes((current) => {
-      const next = applyNodeChanges(changes, current);
-      persist(next, edges);
-      return next;
-    });
-  }, [edges, persist]);
+    const next = applyNodeChanges(changes, nodesRef.current);
+    nodesRef.current = next;
+    setNodes(next);
+    persist(next, edgesRef.current);
+  }, [persist]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    setEdges((current) => {
-      const next = applyEdgeChanges(changes, current);
-      persist(nodes, next);
-      return next;
-    });
-  }, [nodes, persist]);
+    const next = applyEdgeChanges(changes, edgesRef.current);
+    edgesRef.current = next;
+    setEdges(next);
+    persist(nodesRef.current, next);
+  }, [persist]);
 
   const onConnect = useCallback((connection: Connection) => {
-    setEdges((current) => {
-      const next = addEdge({ ...connection, animated: true }, current);
-      persist(nodes, next);
-      return next;
-    });
-  }, [nodes, persist]);
+    const next = addEdge({ ...connection, animated: true }, edgesRef.current);
+    edgesRef.current = next;
+    setEdges(next);
+    persist(nodesRef.current, next);
+  }, [persist]);
 
   const openEdit = (id: string) => {
     const node = nodes.find((item) => item.id === id);
@@ -75,8 +76,9 @@ export function WorkflowView() {
     const next = editingId
       ? nodes.map((node) => node.id === editingId ? { ...node, data: draft, className: nodeTone[draft.kind] } : node)
       : [...nodes, { id: crypto.randomUUID(), position: { x: 180 + nodes.length * 30, y: 120 + nodes.length * 18 }, data: draft, className: nodeTone[draft.kind] }];
+    nodesRef.current = next;
     setNodes(next);
-    persist(next, edges);
+    persist(next, edgesRef.current);
     setDraft(null);
     setEditingId(null);
   };
@@ -85,6 +87,8 @@ export function WorkflowView() {
     if (!editingId) return;
     const nextNodes = nodes.filter((node) => node.id !== editingId);
     const nextEdges = edges.filter((edge) => edge.source !== editingId && edge.target !== editingId);
+    nodesRef.current = nextNodes;
+    edgesRef.current = nextEdges;
     setNodes(nextNodes); setEdges(nextEdges); persist(nextNodes, nextEdges);
     setDeleting(false); setDraft(null); setEditingId(null);
   };
@@ -98,7 +102,7 @@ export function WorkflowView() {
     <>
       <PageHeader eyebrow="Workflow / Canvas" title="把目标变成可见的执行路径。"
         description="拖动节点调整结构，连接输入与输出；人工确认节点用于守住关键决策边界。"
-        icon={WorkflowIcon} actions={<><Button variant="outline" onClick={() => persist()}><Save />已自动保存</Button><Button onClick={() => { setEditingId(null); setDraft({ ...blankData }); }}><Plus />添加节点</Button></>} />
+        icon={WorkflowIcon} actions={<><Button variant="outline" onClick={() => persist(nodesRef.current, edgesRef.current)}><Save />已自动保存</Button><Button onClick={() => { setEditingId(null); setDraft({ ...blankData }); }}><Plus />添加节点</Button></>} />
       <div className="mb-4 flex items-center gap-3"><div className="relative max-w-xs flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="聚焦节点…" className="pl-9" /></div><Badge variant="outline" className="font-mono">{nodes.length} NODES · {edges.length} EDGES</Badge></div>
       <Card className="h-[calc(100vh-260px)] min-h-[540px] overflow-hidden bg-card/55">
         <ReactFlow nodes={visibleNodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}

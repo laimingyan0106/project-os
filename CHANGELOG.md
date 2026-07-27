@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 - Unreleased
+
+### Added
+
+- S0 baseline documentation, architecture decisions and incremental delivery constraints.
+- Vitest unit-test harness and Playwright browser-test harness.
+- Initial v0.1 regression coverage for seed graph integrity and core routes.
+- Supabase migration directory for forward-only v0.2 database changes.
+
 ## 0.1.0 - 2026-07-27
 
 - 初始化 Next.js 16 App Router、TypeScript、Tailwind CSS 与 shadcn/ui。
