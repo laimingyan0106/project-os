@@ -1,0 +1,40 @@
+import { expect, test } from "@playwright/test";
+
+const protectedRoutes = ["/", "/projects", "/workflows", "/agents", "/inbox", "/settings"];
+
+for (const path of protectedRoutes) {
+  test(`${path} redirects anonymous users to login`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/login\?next=/);
+    await expect(page.getByRole("heading", { level: 2, name: "欢迎回到工作区" })).toBeVisible();
+  });
+}
+
+test("login supports password and Magic Link modes", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByLabel("邮箱")).toBeVisible();
+  await expect(page.getByLabel("密码")).toBeVisible();
+  await page.getByRole("button", { name: "Magic Link" }).click();
+  await expect(page.getByText("我们会发送一次性登录链接，无需输入密码。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "发送登录链接" })).toBeVisible();
+});
+
+test("signup validates credentials before contacting Supabase", async ({ page }) => {
+  await page.goto("/signup");
+  await page.getByLabel("邮箱").fill("not-an-email");
+  await page.getByLabel("密码", { exact: true }).fill("short");
+  await page.getByLabel("确认密码").fill("different");
+  await page.getByRole("button", { name: "创建账户" }).click();
+  await expect(page.getByText("请输入有效的邮箱地址")).toBeVisible();
+  await expect(page.getByText("密码至少需要 8 位")).toBeVisible();
+  await expect(page.getByText("两次输入的密码不一致")).toBeVisible();
+});
+
+test("mobile auth page has no horizontal page overflow", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Mobile-only layout assertion");
+  await page.goto("/login");
+  const hasOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(hasOverflow).toBe(false);
+});

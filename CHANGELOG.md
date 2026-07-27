@@ -2,6 +2,13 @@
 
 ## 0.2.0 - Unreleased
 
+### S1 - Supabase authentication
+
+- Added Supabase SSR cookie sessions and Next.js 16 route protection.
+- Added email/password signup, login, Magic Link, password reset, and sign out.
+- Separated public authentication pages from the protected Project OS workspace.
+- Updated settings to distinguish cloud identity from the pending data migration.
+
 ### Added
 
 - S0 baseline documentation, architecture decisions and incremental delivery constraints.

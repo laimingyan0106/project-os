@@ -5,8 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bot, Boxes, ChevronRight, CircleDot, Command as CommandIcon, FolderKanban,
-  Inbox, LayoutDashboard, Menu, Search, Settings2, Workflow, Zap,
+  Inbox, LayoutDashboard, LogOut, Menu, Search, Settings2, Workflow, Zap,
 } from "lucide-react";
+import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -25,7 +26,7 @@ const primaryNav = [
 
 const futureNav = ["Prompt Library", "Knowledge Base", "Skill Tree", "Resources"];
 
-function Navigation({ onNavigate }: { onNavigate?: () => void }) {
+function Navigation({ onNavigate, userEmail }: { onNavigate?: () => void; userEmail: string }) {
   const pathname = usePathname();
   return (
     <div className="flex h-full flex-col">
@@ -74,16 +75,21 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
             <div className="absolute inset-0 size-2 animate-ping rounded-full bg-emerald-400 opacity-50" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium">Local workspace</p>
-            <p className="truncate font-mono text-[9px] text-muted-foreground">browser persistence</p>
+            <p className="text-xs font-medium">Cloud session</p>
+            <p className="truncate font-mono text-[9px] text-muted-foreground">{userEmail}</p>
           </div>
+          <form action={signOutAction}>
+            <Button type="submit" variant="ghost" size="icon-sm" aria-label="退出登录">
+              <LogOut />
+            </Button>
+          </form>
         </div>
       </div>
     </div>
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, userEmail }: { children: React.ReactNode; userEmail: string }) {
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -103,12 +109,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="fixed inset-y-0 hidden w-[248px] border-r bg-sidebar/88 backdrop-blur-xl lg:block"><Navigation /></aside>
+      <aside className="fixed inset-y-0 hidden w-[248px] border-r bg-sidebar/88 backdrop-blur-xl lg:block"><Navigation userEmail={userEmail} /></aside>
       <div className="lg:col-start-2">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/78 px-4 backdrop-blur-xl md:px-7">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild><Button variant="ghost" size="icon-sm" className="lg:hidden"><Menu /></Button></SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-0"><SheetTitle className="sr-only">导航</SheetTitle><Navigation onNavigate={() => setMobileOpen(false)} /></SheetContent>
+            <SheetContent side="left" className="w-[280px] p-0"><SheetTitle className="sr-only">导航</SheetTitle><Navigation userEmail={userEmail} onNavigate={() => setMobileOpen(false)} /></SheetContent>
           </Sheet>
           <button onClick={() => setSearchOpen(true)} className="flex h-9 min-w-0 max-w-md flex-1 items-center gap-2 rounded-md border bg-card/60 px-3 text-left text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">
             <Search className="size-3.5" /><span className="truncate">搜索项目、代理、收件箱…</span>
