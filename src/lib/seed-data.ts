@@ -19,6 +19,11 @@ export const seedState: ProjectOSState = {
   workflow: {
     id: "w1",
     title: "MVP Delivery Flow",
+    description: "",
+    version: 1,
+    isDefault: true,
+    createdAt: "",
+    updatedAt: "",
     nodes: [
       { id: "n1", position: { x: 40, y: 145 }, data: { label: "读取目标", kind: "trigger", owner: "You" } },
       { id: "n2", position: { x: 300, y: 55 }, data: { label: "拆解范围", kind: "agent", owner: "Scope" } },

@@ -24,8 +24,8 @@ This directory tracks the incremental implementation defined by
 | --- | --- | --- |
 | S0 | Baseline, test harness, ADRs, migration directory | Complete |
 | S1 | Auth, session refresh, protected routes, profile | Complete |
-| S2 | Repository layer and cloud Projects/Inbox/Agents | In progress — migration apply and live persistence verification pending |
-| S3 | Workflow list, normalized graph and save states | Pending |
+| S2 | Repository layer and cloud Projects/Inbox/Agents | Complete |
+| S3 | Workflow list, normalized graph and save states | In progress |
 | S4 | Idempotent v0.1 local migration | Pending |
 | S5 | Prompt Library and Knowledge Base | Pending |
 | S6 | Skill Tree, Resources and Activity Log | Pending |

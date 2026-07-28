@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-const protectedRoutes = ["/", "/projects", "/workflows", "/agents", "/inbox", "/settings"];
+const protectedRoutes = [
+  "/",
+  "/projects",
+  "/workflows",
+  "/workflows/00000000-0000-0000-0000-000000000000",
+  "/agents",
+  "/inbox",
+  "/settings",
+];
 
 for (const path of protectedRoutes) {
   test(`${path} redirects anonymous users to login`, async ({ page }) => {

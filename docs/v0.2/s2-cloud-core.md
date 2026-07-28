@@ -26,8 +26,15 @@ Date: 2026-07-29
   and edges. Existing `project-os:v1` data is preserved untouched for the S4
   migration wizard.
 
-## Remaining acceptance
+## Live acceptance
 
-- Apply the core migration to the configured Supabase project.
-- Verify create → refresh → second browser persistence for all three entities.
-- Verify that a second test user cannot read or mutate the first user's UUIDs.
+- Core migration applied to the configured Supabase project.
+- Projects, Inbox and Agents passed create, refresh and second-browser
+  persistence verification on 2026-07-29.
+- Anonymous REST probes returned empty collections for all core tables under
+  RLS.
+
+## Deferred security regression
+
+- A dedicated second-user cross-tenant UUID test remains part of the S7
+  hardening suite. Current owner filters and database RLS remain enabled.

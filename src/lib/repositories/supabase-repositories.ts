@@ -1,12 +1,19 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Agent, InboxItem, Project } from "@/lib/project-os";
+import type {
+  Agent,
+  InboxItem,
+  Project,
+  Workflow,
+  WorkflowSummary,
+} from "@/lib/project-os";
 import type {
   AgentRepository,
   CloudState,
   InboxRepository,
   ProjectRepository,
+  WorkflowRepository,
 } from "@/lib/repositories/contracts";
 
 type Row = Record<string, unknown>;
@@ -75,6 +82,90 @@ function agentFromRow(row: Row): Agent {
     nextAgent: row.next_agent_id ? String(row.next_agent_id) : undefined,
     status: row.status as Agent["status"],
     updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+function jsonObject(value: unknown): Row {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Row
+    : {};
+}
+
+function workflowSummaryFromRow(row: Row): WorkflowSummary {
+  return {
+    id: String(row.id),
+    title: String(row.title ?? ""),
+    description: String(row.description ?? ""),
+    projectId: row.project_id ? String(row.project_id) : undefined,
+    version: Number(row.version ?? 1),
+    isDefault: Boolean(row.is_default),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+function workflowNodeFromRow(row: Row): Workflow["nodes"][number] {
+  const config = jsonObject(row.config);
+  const nodeConfig = jsonObject(config.node);
+  const dataConfig = jsonObject(config.data);
+  return {
+    ...nodeConfig,
+    id: String(row.id),
+    position: {
+      x: Number(row.position_x ?? 0),
+      y: Number(row.position_y ?? 0),
+    },
+    data: {
+      ...dataConfig,
+      label: String(row.label ?? ""),
+      kind: row.type as Workflow["nodes"][number]["data"]["kind"],
+      owner: String(row.owner ?? ""),
+    },
+  };
+}
+
+function workflowEdgeFromRow(row: Row): Workflow["edges"][number] {
+  const config = jsonObject(row.config);
+  return {
+    ...jsonObject(config.edge),
+    id: String(row.id),
+    source: String(row.source_node_id),
+    target: String(row.target_node_id),
+    label: String(row.label ?? "") || undefined,
+    animated: Boolean(row.animated),
+  };
+}
+
+function workflowNodeToRow(node: Workflow["nodes"][number]) {
+  const { id, position, data, ...nodeConfig } = node;
+  const { label, kind, owner, ...dataConfig } = data;
+  return {
+    id,
+    type: kind,
+    label,
+    owner,
+    position_x: position.x,
+    position_y: position.y,
+    config: { node: nodeConfig, data: dataConfig },
+  };
+}
+
+function workflowEdgeToRow(edge: Workflow["edges"][number]) {
+  const {
+    id,
+    source,
+    target,
+    label,
+    animated,
+    ...edgeConfig
+  } = edge;
+  return {
+    id,
+    source_node_id: source,
+    target_node_id: target,
+    label: typeof label === "string" ? label : "",
+    animated: Boolean(animated),
+    config: { edge: edgeConfig },
   };
 }
 
@@ -261,11 +352,157 @@ class SupabaseAgentRepository implements AgentRepository {
   }
 }
 
+class SupabaseWorkflowRepository implements WorkflowRepository {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly userId: string,
+  ) {}
+
+  async list() {
+    const { data, error } = await this.client
+      .from("workflows")
+      .select("id,project_id,title,description,version,is_default,created_at,updated_at")
+      .eq("user_id", this.userId)
+      .order("updated_at", { ascending: false });
+    assertNoError(error);
+    return (data ?? []).map((row) => workflowSummaryFromRow(row as Row));
+  }
+
+  async getGraph(id: string) {
+    const { data, error } = await this.client
+      .from("workflows")
+      .select("id,project_id,title,description,version,is_default,created_at,updated_at")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+    assertNoError(error);
+    if (!data) return null;
+
+    const [nodeResult, edgeResult] = await Promise.all([
+      this.client
+        .from("workflow_nodes")
+        .select("*")
+        .eq("user_id", this.userId)
+        .eq("workflow_id", id)
+        .order("created_at", { ascending: true }),
+      this.client
+        .from("workflow_edges")
+        .select("*")
+        .eq("user_id", this.userId)
+        .eq("workflow_id", id)
+        .order("created_at", { ascending: true }),
+    ]);
+    assertNoError(nodeResult.error);
+    assertNoError(edgeResult.error);
+
+    return {
+      ...workflowSummaryFromRow(data as Row),
+      nodes: (nodeResult.data ?? []).map((row) => workflowNodeFromRow(row as Row)),
+      edges: (edgeResult.data ?? []).map((row) => workflowEdgeFromRow(row as Row)),
+    };
+  }
+
+  async create(input: {
+    title: string;
+    description?: string;
+    projectId?: string;
+  }) {
+    const { count, error: countError } = await this.client
+      .from("workflows")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", this.userId);
+    assertNoError(countError);
+
+    const { data, error } = await this.client
+      .from("workflows")
+      .insert({
+        user_id: this.userId,
+        project_id: input.projectId ?? null,
+        title: input.title,
+        description: input.description ?? "",
+        is_default: count === 0,
+      })
+      .select("id,project_id,title,description,version,is_default,created_at,updated_at")
+      .single();
+    assertNoError(error);
+    return workflowSummaryFromRow(data as Row);
+  }
+
+  async saveGraph(workflow: Workflow) {
+    const { data, error } = await this.client
+      .rpc("save_workflow_graph", {
+        p_workflow_id: workflow.id,
+        p_expected_version: workflow.version,
+        p_nodes: workflow.nodes.map(workflowNodeToRow),
+        p_edges: workflow.edges.map(workflowEdgeToRow),
+      })
+      .single();
+    assertNoError(error);
+    return {
+      ...workflowSummaryFromRow(data as Row),
+      nodes: workflow.nodes,
+      edges: workflow.edges,
+    };
+  }
+
+  async duplicate(id: string) {
+    const source = await this.getGraph(id);
+    if (!source) throw new RepositoryError("workflow not found", "P0002");
+    const copy = await this.create({
+      title: `${source.title} 副本`,
+      description: source.description,
+      projectId: source.projectId,
+    });
+    try {
+      const nodeIds = new Map(
+        source.nodes.map((node) => [node.id, crypto.randomUUID()]),
+      );
+      const saved = await this.saveGraph({
+        ...source,
+        ...copy,
+        nodes: source.nodes.map((node) => ({
+          ...node,
+          id: nodeIds.get(node.id) ?? crypto.randomUUID(),
+        })),
+        edges: source.edges.map((edge) => ({
+          ...edge,
+          id: crypto.randomUUID(),
+          source: nodeIds.get(edge.source) ?? edge.source,
+          target: nodeIds.get(edge.target) ?? edge.target,
+        })),
+      });
+      return {
+        id: saved.id,
+        title: saved.title,
+        description: saved.description,
+        projectId: saved.projectId,
+        version: saved.version,
+        isDefault: saved.isDefault,
+        createdAt: saved.createdAt,
+        updatedAt: saved.updatedAt,
+      };
+    } catch (reason) {
+      await this.remove(copy.id);
+      throw reason;
+    }
+  }
+
+  async remove(id: string) {
+    const { error } = await this.client
+      .from("workflows")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("id", id);
+    assertNoError(error);
+  }
+}
+
 export function createRepositories(client: SupabaseClient, userId: string) {
   return {
     projects: new SupabaseProjectRepository(client, userId),
     inbox: new SupabaseInboxRepository(client, userId),
     agents: new SupabaseAgentRepository(client, userId),
+    workflows: new SupabaseWorkflowRepository(client, userId),
   };
 }
 
@@ -274,10 +511,11 @@ export async function loadCloudState(
   userId: string,
 ): Promise<CloudState> {
   const repositories = createRepositories(client, userId);
-  const [projects, inbox, agents] = await Promise.all([
+  const [projects, inbox, agents, workflows] = await Promise.all([
     repositories.projects.list(),
     repositories.inbox.list(),
     repositories.agents.list(),
+    repositories.workflows.list(),
   ]);
-  return { projects, inbox, agents };
+  return { projects, inbox, agents, workflows };
 }

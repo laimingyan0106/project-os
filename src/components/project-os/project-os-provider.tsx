@@ -10,10 +10,13 @@ import {
 } from "react";
 import {
   archiveProjectAction,
+  createWorkflowAction,
+  duplicateWorkflowAction,
   refreshCloudStateAction,
   removeAgentAction,
   removeInboxItemAction,
   removeProjectAction,
+  removeWorkflowAction,
   saveAgentAction,
   saveInboxItemAction,
   saveProjectAction,
@@ -22,14 +25,17 @@ import {
   actionError,
   type ActionResult,
 } from "@/lib/action-result";
-import type { Agent, InboxItem, Project, Workflow } from "@/lib/project-os";
+import type {
+  Agent,
+  InboxItem,
+  Project,
+  WorkflowSummary,
+} from "@/lib/project-os";
 import type { CloudState } from "@/lib/repositories/contracts";
-import { seedState } from "@/lib/seed-data";
 
 export type SyncStatus = "synced" | "syncing" | "offline" | "error";
 
 interface StoreContextValue extends CloudState {
-  workflow: Workflow;
   hydrated: boolean;
   syncStatus: SyncStatus;
   syncError?: string;
@@ -42,7 +48,13 @@ interface StoreContextValue extends CloudState {
   deleteAgent: (id: string) => Promise<ActionResult<null>>;
   saveInboxItem: (item: InboxItem) => Promise<ActionResult<InboxItem>>;
   deleteInboxItem: (id: string) => Promise<ActionResult<null>>;
-  saveWorkflow: (workflow: Workflow) => void;
+  createWorkflow: (input: {
+    title: string;
+    description?: string;
+    projectId?: string;
+  }) => Promise<ActionResult<WorkflowSummary>>;
+  duplicateWorkflow: (id: string) => Promise<ActionResult<WorkflowSummary>>;
+  deleteWorkflow: (id: string) => Promise<ActionResult<null>>;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -63,7 +75,6 @@ export function ProjectOSProvider({
   initialCloudError?: string;
 }) {
   const [cloud, setCloud] = useState<CloudState>(initialCloudState);
-  const [workflow, setWorkflow] = useState(seedState.workflow);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(
     initialCloudError ? "error" : "synced",
   );
@@ -230,13 +241,57 @@ export function ProjectOSProvider({
     return result;
   }, [beginCloudOperation, finishCloudOperation]);
 
-  const saveWorkflow = useCallback((nextWorkflow: Workflow) => {
-    setWorkflow(nextWorkflow);
-  }, []);
+  const createWorkflow = useCallback(async (input: {
+    title: string;
+    description?: string;
+    projectId?: string;
+  }) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，工作流尚未创建。");
+    }
+    const result = await createWorkflowAction(input);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        workflows: upsert(state.workflows, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const duplicateWorkflow = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，工作流尚未复制。");
+    }
+    const result = await duplicateWorkflowAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        workflows: upsert(state.workflows, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const deleteWorkflow = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，工作流尚未删除。");
+    }
+    const result = await removeWorkflowAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        workflows: state.workflows.filter((workflow) => workflow.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
 
   const value = useMemo<StoreContextValue>(() => ({
     ...cloud,
-    workflow,
     hydrated: true,
     syncStatus,
     syncError,
@@ -249,22 +304,25 @@ export function ProjectOSProvider({
     deleteAgent,
     saveInboxItem,
     deleteInboxItem,
-    saveWorkflow,
+    createWorkflow,
+    duplicateWorkflow,
+    deleteWorkflow,
   }), [
     cloud,
+    createWorkflow,
     deleteAgent,
     deleteInboxItem,
     deleteProject,
+    deleteWorkflow,
+    duplicateWorkflow,
     lastSyncedAt,
     refreshCloudState,
     removeProject,
     saveAgent,
     saveInboxItem,
     saveProject,
-    saveWorkflow,
     syncError,
     syncStatus,
-    workflow,
   ]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

@@ -1,5 +1,5 @@
-import { WorkflowView } from "@/components/project-os/workflow-view";
+import { WorkflowsView } from "@/components/project-os/workflows-view";
 
 export default function WorkflowsPage() {
-  return <WorkflowView />;
+  return <WorkflowsView />;
 }

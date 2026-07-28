@@ -5,7 +5,13 @@ import {
   actionError,
   type ActionResult,
 } from "@/lib/action-result";
-import type { Agent, InboxItem, Project } from "@/lib/project-os";
+import type {
+  Agent,
+  InboxItem,
+  Project,
+  Workflow,
+  WorkflowSummary,
+} from "@/lib/project-os";
 import type { CloudState } from "@/lib/repositories/contracts";
 import {
   createRepositories,
@@ -58,13 +64,78 @@ const agentSchema = z.object({
   updatedAt: z.string().optional(),
 });
 
+const workflowCreateSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  description: z.string().max(2_000).optional(),
+  projectId: uuid.optional(),
+});
+
+const workflowNodeSchema = z.object({
+  id: uuid,
+  position: z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  data: z.object({
+    label: z.string().trim().min(1).max(200),
+    kind: z.enum(["trigger", "agent", "review", "condition", "output"]),
+    owner: z.string().max(160),
+  }).passthrough(),
+}).passthrough();
+
+const workflowEdgeSchema = z.object({
+  id: uuid,
+  source: uuid,
+  target: uuid,
+  label: z.string().max(200).optional(),
+  animated: z.boolean().optional(),
+}).passthrough();
+
+const workflowGraphSchema = z.object({
+  id: uuid,
+  title: z.string().trim().min(1).max(160),
+  description: z.string().max(2_000),
+  projectId: uuid.optional(),
+  version: z.number().int().positive(),
+  isDefault: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  nodes: z.array(workflowNodeSchema).max(500),
+  edges: z.array(workflowEdgeSchema).max(1_000),
+}).superRefine((workflow, context) => {
+  const nodeIds = new Set(workflow.nodes.map((node) => node.id));
+  if (nodeIds.size !== workflow.nodes.length) {
+    context.addIssue({
+      code: "custom",
+      message: "工作流包含重复节点。",
+      path: ["nodes"],
+    });
+  }
+  for (const [index, edge] of workflow.edges.entries()) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
+      context.addIssue({
+        code: "custom",
+        message: "连线引用了不存在的节点。",
+        path: ["edges", index],
+      });
+    }
+  }
+});
+
 function repositoryFailure<T>(reason: unknown): ActionResult<T> {
   if (reason instanceof RepositoryError) {
     if (reason.code === "42501") {
       return actionError("FORBIDDEN", "没有权限访问这条数据。");
     }
-    if (reason.code === "23505" || reason.code === "409") {
+    if (
+      reason.code === "23505"
+      || reason.code === "40001"
+      || reason.code === "409"
+    ) {
       return actionError("CONFLICT", "数据已发生变化，请刷新后重试。");
+    }
+    if (reason.code === "23503" || reason.code === "22023") {
+      return actionError("VALIDATION_ERROR", "工作流节点或连线数据无效。");
     }
     if (/fetch|network/i.test(reason.message)) {
       return actionError("NETWORK_ERROR", "网络连接失败，草稿尚未保存。");
@@ -186,6 +257,83 @@ export async function removeAgentAction(id: string): Promise<ActionResult<null>>
   if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
   try {
     await context.repositories.agents.remove(parsed.data);
+    return { ok: true, data: null };
+  } catch (reason) {
+    return repositoryFailure(reason);
+  }
+}
+
+export async function createWorkflowAction(
+  input: {
+    title: string;
+    description?: string;
+    projectId?: string;
+  },
+): Promise<ActionResult<WorkflowSummary>> {
+  const parsed = workflowCreateSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "请检查工作流名称和关联项目。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.workflows.create(parsed.data),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason);
+  }
+}
+
+export async function saveWorkflowGraphAction(
+  input: Workflow,
+): Promise<ActionResult<Workflow>> {
+  if (!workflowGraphSchema.safeParse(input).success) {
+    return actionError("VALIDATION_ERROR", "请检查工作流节点和连线。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.workflows.saveGraph(input),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason);
+  }
+}
+
+export async function duplicateWorkflowAction(
+  id: string,
+): Promise<ActionResult<WorkflowSummary>> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "工作流编号无效。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.workflows.duplicate(parsed.data),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason);
+  }
+}
+
+export async function removeWorkflowAction(
+  id: string,
+): Promise<ActionResult<null>> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "工作流编号无效。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    await context.repositories.workflows.remove(parsed.data);
     return { ok: true, data: null };
   } catch (reason) {
     return repositoryFailure(reason);

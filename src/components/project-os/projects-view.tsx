@@ -21,7 +21,7 @@ const labels = { active: "进行中", planning: "规划中", blocked: "受阻", 
 const accents = { active: "bg-emerald-400", planning: "bg-sky-400", blocked: "bg-red-400", done: "bg-muted-foreground" };
 
 export function ProjectsView({ openCreate = false }: { openCreate?: boolean }) {
-  const { projects, saveProject, deleteProject } = useProjectOS();
+  const { projects, workflows, saveProject, deleteProject } = useProjectOS();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Project | null>(
     openCreate ? { ...emptyProject } : null,
@@ -84,7 +84,9 @@ export function ProjectsView({ openCreate = false }: { openCreate?: boolean }) {
               <div className="mt-6 flex items-center gap-2">
                 <Badge variant="outline"><span className={`mr-1.5 size-1.5 rounded-full ${accents[project.status]}`} />{labels[project.status]}</Badge>
                 <Badge variant="secondary">{project.priority.toUpperCase()}</Badge>
-                {project.workflowId && <Workflow className="ms-auto size-3.5 text-primary" />}
+                {workflows.some((workflow) => workflow.projectId === project.id) && (
+                  <Workflow className="ms-auto size-3.5 text-primary" />
+                )}
               </div>
               <div className="mt-5 border-t pt-3 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">updated {project.updatedAt}</div>
             </CardContent>

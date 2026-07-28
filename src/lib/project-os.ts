@@ -46,13 +46,22 @@ export interface InboxItem {
 
 export interface WorkflowNodeData extends Record<string, unknown> {
   label: string;
-  kind: "trigger" | "agent" | "review" | "output";
+  kind: "trigger" | "agent" | "review" | "condition" | "output";
   owner: string;
 }
 
-export interface Workflow {
+export interface WorkflowSummary {
   id: string;
   title: string;
+  description: string;
+  projectId?: string;
+  version: number;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Workflow extends WorkflowSummary {
   nodes: Node<WorkflowNodeData>[];
   edges: Edge[];
 }

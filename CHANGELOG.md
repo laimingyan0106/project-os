@@ -23,6 +23,16 @@
   create behavior.
 - Added Agent model, tools, project association, paused and error states.
 
+### S3 - Workflow cloud
+
+- Added multi-workflow cloud lists and independent workflow detail routes.
+- Normalized graph reads across workflow, node and edge rows.
+- Added an authenticated transactional graph-save RPC with optimistic version
+  conflict detection.
+- Added debounced position saves, serialized structural saves and visible
+  saved, saving, offline, error and conflict states.
+- Added workflow create, duplicate, project association and permanent delete.
+
 ### Added
 
 - S0 baseline documentation, architecture decisions and incremental delivery constraints.

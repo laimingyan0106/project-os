@@ -38,9 +38,12 @@ const statusLabels = {
 
 export function ProjectDetailView({ initialProject }: { initialProject: Project }) {
   const router = useRouter();
-  const { projects, agents, removeProject } = useProjectOS();
+  const { projects, agents, workflows, removeProject } = useProjectOS();
   const project = projects.find((item) => item.id === initialProject.id) ?? initialProject;
   const relatedAgents = agents.filter((agent) => agent.projectId === project.id);
+  const relatedWorkflows = workflows.filter(
+    (workflow) => workflow.projectId === project.id,
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -109,9 +112,23 @@ export function ProjectDetailView({ initialProject }: { initialProject: Project 
           <Card className="bg-card/70">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
-                <div><p className="text-sm font-medium">关联工作流</p><p className="mt-1 text-xs text-muted-foreground">多工作流云端化将在 S3 完成</p></div>
-                <Workflow className="size-5 text-muted-foreground" />
+                <div><p className="text-sm font-medium">关联工作流</p><p className="mt-1 text-xs text-muted-foreground">一个项目可以连接多个独立画布</p></div>
+                <div className="flex items-center gap-2 text-lg font-semibold"><Workflow className="size-4 text-primary" />{relatedWorkflows.length}</div>
               </div>
+              {relatedWorkflows.length ? (
+                <div className="mt-4 space-y-2 border-t pt-4">
+                  {relatedWorkflows.map((workflow) => (
+                    <Link
+                      key={workflow.id}
+                      href={`/workflows/${workflow.id}`}
+                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-xs hover:bg-background/50 hover:text-primary"
+                    >
+                      <span className="truncate">{workflow.title}</span>
+                      <span className="font-mono text-[9px] text-muted-foreground">V{workflow.version}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </div>

@@ -18,7 +18,12 @@ export default async function WorkspaceLayout({
 
   if (!user) redirect("/login");
 
-  let initialCloudState: CloudState = { projects: [], inbox: [], agents: [] };
+  let initialCloudState: CloudState = {
+    projects: [],
+    inbox: [],
+    agents: [],
+    workflows: [],
+  };
   let initialCloudError: string | undefined;
   try {
     initialCloudState = await loadCloudState(supabase, user.id);

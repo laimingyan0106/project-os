@@ -1,4 +1,10 @@
-import type { Agent, InboxItem, Project } from "@/lib/project-os";
+import type {
+  Agent,
+  InboxItem,
+  Project,
+  Workflow,
+  WorkflowSummary,
+} from "@/lib/project-os";
 
 export interface ProjectRepository {
   list(): Promise<Project[]>;
@@ -21,8 +27,22 @@ export interface AgentRepository {
   remove(id: string): Promise<void>;
 }
 
+export interface WorkflowRepository {
+  list(): Promise<WorkflowSummary[]>;
+  getGraph(id: string): Promise<Workflow | null>;
+  create(input: {
+    title: string;
+    description?: string;
+    projectId?: string;
+  }): Promise<WorkflowSummary>;
+  saveGraph(workflow: Workflow): Promise<Workflow>;
+  duplicate(id: string): Promise<WorkflowSummary>;
+  remove(id: string): Promise<void>;
+}
+
 export interface CloudState {
   projects: Project[];
   inbox: InboxItem[];
   agents: Agent[];
+  workflows: WorkflowSummary[];
 }
