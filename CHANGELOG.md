@@ -11,6 +11,18 @@
 - Separated public authentication pages from the protected Project OS workspace.
 - Updated settings to distinguish cloud identity from the pending data migration.
 
+### S2 - Cloud core
+
+- Added the forward-only v0.2 database migration, profile trigger, constraints,
+  indexes and split per-user RLS policies.
+- Added Repository contracts and Supabase implementations for Projects, Inbox
+  and Agents.
+- Replaced localStorage-backed core CRUD with authenticated cloud Server
+  Actions and visible synchronization states.
+- Added project details, default archiving, permanent deletion and `?new=1`
+  create behavior.
+- Added Agent model, tools, project association, paused and error states.
+
 ### Added
 
 - S0 baseline documentation, architecture decisions and incremental delivery constraints.

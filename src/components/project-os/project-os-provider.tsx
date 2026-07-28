@@ -1,61 +1,273 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import type { Agent, InboxItem, Project, ProjectOSState, Workflow } from "@/lib/project-os";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  archiveProjectAction,
+  refreshCloudStateAction,
+  removeAgentAction,
+  removeInboxItemAction,
+  removeProjectAction,
+  saveAgentAction,
+  saveInboxItemAction,
+  saveProjectAction,
+} from "@/app/(workspace)/cloud-actions";
+import {
+  actionError,
+  type ActionResult,
+} from "@/lib/action-result";
+import type { Agent, InboxItem, Project, Workflow } from "@/lib/project-os";
+import type { CloudState } from "@/lib/repositories/contracts";
 import { seedState } from "@/lib/seed-data";
 
-interface StoreContextValue extends ProjectOSState {
+export type SyncStatus = "synced" | "syncing" | "offline" | "error";
+
+interface StoreContextValue extends CloudState {
+  workflow: Workflow;
   hydrated: boolean;
-  saveProject: (project: Project) => void;
-  deleteProject: (id: string) => void;
-  saveAgent: (agent: Agent) => void;
-  deleteAgent: (id: string) => void;
-  saveInboxItem: (item: InboxItem) => void;
-  deleteInboxItem: (id: string) => void;
+  syncStatus: SyncStatus;
+  syncError?: string;
+  lastSyncedAt?: string;
+  refreshCloudState: () => Promise<ActionResult<CloudState>>;
+  saveProject: (project: Project) => Promise<ActionResult<Project>>;
+  deleteProject: (id: string) => Promise<ActionResult<Project>>;
+  removeProject: (id: string) => Promise<ActionResult<null>>;
+  saveAgent: (agent: Agent) => Promise<ActionResult<Agent>>;
+  deleteAgent: (id: string) => Promise<ActionResult<null>>;
+  saveInboxItem: (item: InboxItem) => Promise<ActionResult<InboxItem>>;
+  deleteInboxItem: (id: string) => Promise<ActionResult<null>>;
   saveWorkflow: (workflow: Workflow) => void;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
-const STORAGE_KEY = "project-os:v1";
 
-export function ProjectOSProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<ProjectOSState>(seedState);
-  const [hydrated, setHydrated] = useState(false);
+function upsert<T extends { id: string }>(items: T[], item: T) {
+  return items.some((current) => current.id === item.id)
+    ? items.map((current) => current.id === item.id ? item : current)
+    : [item, ...items];
+}
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      // Reading persisted browser state is the external-system synchronization this effect owns.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      try { setState(JSON.parse(saved) as ProjectOSState); } catch { window.localStorage.removeItem(STORAGE_KEY); }
+export function ProjectOSProvider({
+  children,
+  initialCloudState,
+  initialCloudError,
+}: {
+  children: React.ReactNode;
+  initialCloudState: CloudState;
+  initialCloudError?: string;
+}) {
+  const [cloud, setCloud] = useState<CloudState>(initialCloudState);
+  const [workflow, setWorkflow] = useState(seedState.workflow);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(
+    initialCloudError ? "error" : "synced",
+  );
+  const [syncError, setSyncError] = useState(initialCloudError);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | undefined>(
+    initialCloudError ? undefined : new Date().toISOString(),
+  );
+
+  const beginCloudOperation = useCallback(() => {
+    if (!navigator.onLine) {
+      setSyncStatus("offline");
+      setSyncError("当前处于离线状态，云端数据尚未更改。");
+      return false;
     }
-    setHydrated(true);
+    setSyncStatus("syncing");
+    setSyncError(undefined);
+    return true;
   }, []);
 
+  const finishCloudOperation = useCallback((result: ActionResult<unknown>) => {
+    if (result.ok) {
+      setSyncStatus("synced");
+      setSyncError(undefined);
+      setLastSyncedAt(new Date().toISOString());
+    } else {
+      setSyncStatus(result.error.code === "NETWORK_ERROR" ? "offline" : "error");
+      setSyncError(result.error.message);
+    }
+  }, []);
+
+  const refreshCloudState = useCallback(async (): Promise<ActionResult<CloudState>> => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，无法刷新云端数据。");
+    }
+    const result = await refreshCloudStateAction();
+    if (result.ok) setCloud(result.data);
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
   useEffect(() => {
-    if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [hydrated, state]);
+    const handleFocus = () => {
+      void refreshCloudState();
+    };
+    const handleOnline = () => {
+      void refreshCloudState();
+    };
+    const handleOffline = () => {
+      setSyncStatus("offline");
+      setSyncError("当前处于离线状态，显示的是最近一次同步数据。");
+    };
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [refreshCloudState]);
 
-  const upsert = <T extends { id: string }>(items: T[], item: T) =>
-    items.some((current) => current.id === item.id)
-      ? items.map((current) => current.id === item.id ? item : current)
-      : [item, ...items];
+  const saveProject = useCallback(async (project: Project) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，项目尚未保存。");
+    }
+    const result = await saveProjectAction(project);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        projects: upsert(state.projects, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
 
-  return (
-    <StoreContext.Provider value={{
-      ...state,
-      hydrated,
-      saveProject: (project) => setState((s) => ({ ...s, projects: upsert(s.projects, project) })),
-      deleteProject: (id) => setState((s) => ({ ...s, projects: s.projects.filter((item) => item.id !== id) })),
-      saveAgent: (agent) => setState((s) => ({ ...s, agents: upsert(s.agents, agent) })),
-      deleteAgent: (id) => setState((s) => ({ ...s, agents: s.agents.filter((item) => item.id !== id) })),
-      saveInboxItem: (item) => setState((s) => ({ ...s, inbox: upsert(s.inbox, item) })),
-      deleteInboxItem: (id) => setState((s) => ({ ...s, inbox: s.inbox.filter((item) => item.id !== id) })),
-      saveWorkflow: (workflow) => setState((s) => ({ ...s, workflow })),
-    }}>
-      {children}
-    </StoreContext.Provider>
-  );
+  const deleteProject = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，项目尚未归档。");
+    }
+    const result = await archiveProjectAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        projects: state.projects.filter((project) => project.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const removeProject = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，项目尚未删除。");
+    }
+    const result = await removeProjectAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        projects: state.projects.filter((project) => project.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const saveAgent = useCallback(async (agent: Agent) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，Agent 尚未保存。");
+    }
+    const result = await saveAgentAction(agent);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        agents: upsert(state.agents, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const deleteAgent = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，Agent 尚未删除。");
+    }
+    const result = await removeAgentAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        agents: state.agents.filter((agent) => agent.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const saveInboxItem = useCallback(async (item: InboxItem) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，收集项尚未保存。");
+    }
+    const result = await saveInboxItemAction(item);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        inbox: upsert(state.inbox, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const deleteInboxItem = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，收集项尚未删除。");
+    }
+    const result = await removeInboxItemAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        inbox: state.inbox.filter((item) => item.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const saveWorkflow = useCallback((nextWorkflow: Workflow) => {
+    setWorkflow(nextWorkflow);
+  }, []);
+
+  const value = useMemo<StoreContextValue>(() => ({
+    ...cloud,
+    workflow,
+    hydrated: true,
+    syncStatus,
+    syncError,
+    lastSyncedAt,
+    refreshCloudState,
+    saveProject,
+    deleteProject,
+    removeProject,
+    saveAgent,
+    deleteAgent,
+    saveInboxItem,
+    deleteInboxItem,
+    saveWorkflow,
+  }), [
+    cloud,
+    deleteAgent,
+    deleteInboxItem,
+    deleteProject,
+    lastSyncedAt,
+    refreshCloudState,
+    removeProject,
+    saveAgent,
+    saveInboxItem,
+    saveProject,
+    saveWorkflow,
+    syncError,
+    syncStatus,
+    workflow,
+  ]);
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
 export function useProjectOS() {

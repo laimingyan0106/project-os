@@ -7,9 +7,12 @@ export interface Project {
   id: string;
   title: string;
   goal: string;
+  description?: string;
   status: ProjectStatus;
   priority: Priority;
   workflowId?: string;
+  dueDate?: string;
+  archivedAt?: string;
   updatedAt: string;
 }
 
@@ -19,8 +22,12 @@ export interface Agent {
   role: string;
   input: string;
   output: string;
+  projectId?: string;
+  model?: string;
+  tools?: string[];
   nextAgent?: string;
-  status: "ready" | "working" | "draft";
+  status: "ready" | "working" | "draft" | "paused" | "error";
+  updatedAt?: string;
 }
 
 export interface InboxItem {
@@ -29,7 +36,12 @@ export interface InboxItem {
   content: string;
   kind: "idea" | "task" | "note";
   processed: boolean;
+  status?: "inbox" | "processed" | "archived";
+  processedAt?: string;
+  convertedEntityType?: string;
+  convertedEntityId?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface WorkflowNodeData extends Record<string, unknown> {

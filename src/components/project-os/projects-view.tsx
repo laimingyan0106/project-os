@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { FolderKanban, MoreHorizontal, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
+import { Archive, FolderKanban, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,20 +20,43 @@ const emptyProject: Project = { id: "", title: "", goal: "", status: "planning",
 const labels = { active: "进行中", planning: "规划中", blocked: "受阻", done: "已完成" };
 const accents = { active: "bg-emerald-400", planning: "bg-sky-400", blocked: "bg-red-400", done: "bg-muted-foreground" };
 
-export function ProjectsView() {
+export function ProjectsView({ openCreate = false }: { openCreate?: boolean }) {
   const { projects, saveProject, deleteProject } = useProjectOS();
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<Project | null>(null);
+  const [editing, setEditing] = useState<Project | null>(
+    openCreate ? { ...emptyProject } : null,
+  );
   const [deleting, setDeleting] = useState<Project | null>(null);
+  const [pending, setPending] = useState(false);
+  const [operationError, setOperationError] = useState<string>();
 
   const filtered = useMemo(() => projects.filter((project) =>
     `${project.title} ${project.goal}`.toLowerCase().includes(query.toLowerCase())), [projects, query]);
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editing?.title.trim()) return;
-    saveProject({ ...editing, id: editing.id || crypto.randomUUID(), title: editing.title.trim(), updatedAt: "刚刚" });
-    setEditing(null);
+    setPending(true);
+    setOperationError(undefined);
+    const result = await saveProject({
+      ...editing,
+      id: editing.id || crypto.randomUUID(),
+      title: editing.title.trim(),
+      updatedAt: new Date().toISOString(),
+    });
+    setPending(false);
+    if (result.ok) setEditing(null);
+    else setOperationError(result.error.message);
+  };
+
+  const archiveSelectedProject = async () => {
+    if (!deleting) return;
+    setPending(true);
+    setOperationError(undefined);
+    const result = await deleteProject(deleting.id);
+    setPending(false);
+    if (result.ok) setDeleting(null);
+    else setOperationError(result.error.message);
   };
 
   return (
@@ -50,10 +74,10 @@ export function ProjectsView() {
             <div className={`h-0.5 ${accents[project.status]}`} />
             <CardContent className="p-5">
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0"><p className="font-mono text-[9px] text-muted-foreground">PROJECT / {String(index + 1).padStart(2, "0")}</p><h2 className="mt-3 truncate text-base font-semibold">{project.title}</h2></div>
+                <div className="min-w-0"><p className="font-mono text-[9px] text-muted-foreground">PROJECT / {String(index + 1).padStart(2, "0")}</p><h2 className="mt-3 truncate text-base font-semibold"><Link href={`/projects/${project.id}`} className="hover:text-primary">{project.title}</Link></h2></div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" aria-label="项目操作"><MoreHorizontal /></Button></DropdownMenuTrigger>
-                  <DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setEditing(project)}><Pencil />编辑</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => setDeleting(project)}><Trash2 />删除</DropdownMenuItem></DropdownMenuContent>
+                  <DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setEditing(project)}><Pencil />编辑</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={() => setDeleting(project)}><Archive />归档</DropdownMenuItem></DropdownMenuContent>
                 </DropdownMenu>
               </div>
               <p className="mt-4 min-h-10 text-sm leading-5 text-muted-foreground">{project.goal}</p>
@@ -79,13 +103,14 @@ export function ProjectsView() {
               <div><label className="mb-2 block text-xs font-medium">状态</label><Select value={editing.status} onValueChange={(value) => setEditing({ ...editing, status: value as ProjectStatus })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(labels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
               <div><label className="mb-2 block text-xs font-medium">优先级</label><Select value={editing.priority} onValueChange={(value) => setEditing({ ...editing, priority: value as Priority })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="high">High</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="low">Low</SelectItem></SelectContent></Select></div>
             </div>
-            <DialogFooter><Button type="button" variant="ghost" onClick={() => setEditing(null)}>取消</Button><Button type="submit">保存项目</Button></DialogFooter>
+            {operationError ? <p role="alert" className="text-sm text-destructive">{operationError}</p> : null}
+            <DialogFooter><Button type="button" variant="ghost" onClick={() => setEditing(null)} disabled={pending}>取消</Button><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : null}保存项目</Button></DialogFooter>
           </form>}
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除“{deleting?.title}”？</AlertDialogTitle><AlertDialogDescription>此操作会从本地工作区移除项目，无法撤销。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { if (deleting) deleteProject(deleting.id); setDeleting(null); }}>确认删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>归档“{deleting?.title}”？</AlertDialogTitle><AlertDialogDescription>项目会从当前列表隐藏，关联数据仍保留在云端。</AlertDialogDescription></AlertDialogHeader>{operationError ? <p role="alert" className="text-sm text-destructive">{operationError}</p> : null}<AlertDialogFooter><AlertDialogCancel disabled={pending}>取消</AlertDialogCancel><AlertDialogAction onClick={(event) => { event.preventDefault(); void archiveSelectedProject(); }} disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : <Archive />}确认归档</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </>
   );

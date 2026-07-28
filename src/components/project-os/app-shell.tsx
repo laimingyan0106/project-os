@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bot, Boxes, ChevronRight, CircleDot, Command as CommandIcon, FolderKanban,
-  Inbox, LayoutDashboard, LogOut, Menu, Search, Settings2, Workflow, Zap,
+  Bot, Boxes, ChevronRight, Cloud, CloudOff, Command as CommandIcon,
+  FolderKanban, Inbox, LayoutDashboard, LoaderCircle, LogOut, Menu, RefreshCw,
+  Search, Settings2, TriangleAlert, Workflow, Zap,
 } from "lucide-react";
 import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { useProjectOS } from "@/components/project-os/project-os-provider";
 import { cn } from "@/lib/utils";
 
 const primaryNav = [
@@ -91,6 +93,7 @@ function Navigation({ onNavigate, userEmail }: { onNavigate?: () => void; userEm
 
 export function AppShell({ children, userEmail }: { children: React.ReactNode; userEmail: string }) {
   const router = useRouter();
+  const { syncStatus, syncError, refreshCloudState } = useProjectOS();
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -106,6 +109,12 @@ export function AppShell({ children, userEmail }: { children: React.ReactNode; u
   }, []);
 
   const navigate = (href: string) => { setSearchOpen(false); router.push(href); };
+  const syncMeta = {
+    synced: { label: "已同步", icon: Cloud, tone: "text-emerald-400" },
+    syncing: { label: "正在同步", icon: LoaderCircle, tone: "text-primary" },
+    offline: { label: "离线", icon: CloudOff, tone: "text-amber-300" },
+    error: { label: "同步失败", icon: TriangleAlert, tone: "text-destructive" },
+  }[syncStatus];
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
@@ -121,11 +130,30 @@ export function AppShell({ children, userEmail }: { children: React.ReactNode; u
             <span className="ms-auto hidden rounded border bg-background px-1.5 py-0.5 font-mono text-[9px] sm:inline">⌘ K</span>
           </button>
           <div className="ms-auto flex items-center gap-2">
-            <div className="hidden items-center gap-2 text-xs text-muted-foreground md:flex"><CircleDot className="size-3 text-emerald-400" /> System ready</div>
+            <button
+              type="button"
+              onClick={() => void refreshCloudState()}
+              className={cn("hidden items-center gap-2 text-xs md:flex", syncMeta.tone)}
+              aria-label="刷新云端数据"
+            >
+              <syncMeta.icon className={cn("size-3.5", syncStatus === "syncing" && "animate-spin")} />
+              {syncMeta.label}
+            </button>
             <div className="grid size-8 place-items-center rounded-full border bg-card font-mono text-[10px]">OS</div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1520px] p-4 md:p-7 lg:p-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1520px] p-4 md:p-7 lg:p-8">
+          {syncError ? (
+            <div role="alert" className="mb-5 flex items-center gap-3 rounded-lg border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+              <TriangleAlert className="size-4 shrink-0" />
+              <span className="flex-1">{syncError}</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => void refreshCloudState()}>
+                <RefreshCw />重试
+              </Button>
+            </div>
+          ) : null}
+          {children}
+        </main>
       </div>
 
       <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>

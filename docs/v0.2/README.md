@@ -22,9 +22,9 @@ This directory tracks the incremental implementation defined by
 
 | Sprint | Scope | Status |
 | --- | --- | --- |
-| S0 | Baseline, test harness, ADRs, migration directory | In progress |
-| S1 | Auth, session refresh, protected routes, profile | Blocked on Supabase project configuration |
-| S2 | Repository layer and cloud Projects/Inbox/Agents | Pending |
+| S0 | Baseline, test harness, ADRs, migration directory | Complete |
+| S1 | Auth, session refresh, protected routes, profile | Complete |
+| S2 | Repository layer and cloud Projects/Inbox/Agents | In progress — migration apply and live persistence verification pending |
 | S3 | Workflow list, normalized graph and save states | Pending |
 | S4 | Idempotent v0.1 local migration | Pending |
 | S5 | Prompt Library and Knowledge Base | Pending |

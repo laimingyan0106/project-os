@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Inbox, Lightbulb, MoreHorizontal, Pencil, Plus, Search, StickyNote, Trash2 } from "lucide-react";
+import { Check, Inbox, Lightbulb, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, StickyNote, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,44 @@ export function InboxView() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<InboxItem | null>(null);
   const [deleting, setDeleting] = useState<InboxItem | null>(null);
+  const [pending, setPending] = useState(false);
+  const [operationError, setOperationError] = useState<string>();
   const filtered = useMemo(() => inbox.filter((item) => `${item.title} ${item.content}`.toLowerCase().includes(query.toLowerCase())), [inbox, query]);
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editing?.title.trim()) return;
-    saveInboxItem({ ...editing, id: editing.id || crypto.randomUUID(), title: editing.title.trim() });
-    setEditing(null);
+    setPending(true);
+    setOperationError(undefined);
+    const result = await saveInboxItem({
+      ...editing,
+      id: editing.id || crypto.randomUUID(),
+      title: editing.title.trim(),
+    });
+    setPending(false);
+    if (result.ok) setEditing(null);
+    else setOperationError(result.error.message);
+  };
+
+  const toggleProcessed = async (item: InboxItem) => {
+    setPending(true);
+    setOperationError(undefined);
+    const result = await saveInboxItem({
+      ...item,
+      processed: !item.processed,
+      processedAt: item.processed ? undefined : new Date().toISOString(),
+    });
+    setPending(false);
+    if (!result.ok) setOperationError(result.error.message);
+  };
+
+  const removeSelected = async () => {
+    if (!deleting) return;
+    setPending(true);
+    setOperationError(undefined);
+    const result = await deleteInboxItem(deleting.id);
+    setPending(false);
+    if (result.ok) setDeleting(null);
+    else setOperationError(result.error.message);
   };
 
   return (
@@ -45,17 +77,18 @@ export function InboxView() {
               <div key={item.id} className="group grid grid-cols-[36px_1fr_auto] gap-3 border-b p-4 last:border-0 hover:bg-background/35">
                 <div className="grid size-9 place-items-center rounded-lg border bg-background"><meta.icon className={`size-4 ${meta.tone}`} /></div>
                 <div className="min-w-0"><div className="flex items-center gap-2"><h2 className={`truncate text-sm font-medium ${item.processed ? "text-muted-foreground line-through" : ""}`}>{item.title}</h2><Badge variant="secondary" className="text-[9px]">{meta.label}</Badge></div><p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.content}</p><p className="mt-2 font-mono text-[9px] uppercase text-muted-foreground/60">{item.createdAt}</p></div>
-                <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" aria-label="收件箱操作"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => saveInboxItem({ ...item, processed: !item.processed })}><Check />{item.processed ? "标为未处理" : "完成处理"}</DropdownMenuItem><DropdownMenuItem onClick={() => setEditing(item)}><Pencil />编辑</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => setDeleting(item)}><Trash2 />删除</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+                <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" aria-label="收件箱操作"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => void toggleProcessed(item)} disabled={pending}><Check />{item.processed ? "标为未处理" : "完成处理"}</DropdownMenuItem><DropdownMenuItem onClick={() => setEditing(item)}><Pencil />编辑</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => setDeleting(item)}><Trash2 />删除</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
               </div>
             );
           })}
           {filtered.length === 0 && <div className="grid min-h-56 place-items-center text-center"><div><Inbox className="mx-auto mb-3 size-8 text-muted-foreground" /><p className="text-sm">收件箱很安静。</p></div></div>}
         </CardContent>
       </Card>
+      {operationError ? <p role="alert" className="mt-3 text-sm text-destructive">{operationError}</p> : null}
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}><DialogContent><DialogHeader><DialogTitle>{editing?.id ? "编辑收集项" : "快速收集"}</DialogTitle><DialogDescription>先捕捉原始想法，之后再归档到项目或知识库。</DialogDescription></DialogHeader>
-        {editing && <form onSubmit={submit} className="space-y-4"><div><label className="mb-2 block text-xs">标题</label><Input autoFocus value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} placeholder="刚刚想到了什么？" /></div><div><label className="mb-2 block text-xs">内容</label><Textarea value={editing.content} onChange={(e) => setEditing({ ...editing, content: e.target.value })} placeholder="补充背景、下一步或链接…" className="min-h-28" /></div><div><label className="mb-2 block text-xs">类型</label><Select value={editing.kind} onValueChange={(value) => setEditing({ ...editing, kind: value as InboxItem["kind"] })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="idea">想法</SelectItem><SelectItem value="task">任务</SelectItem><SelectItem value="note">笔记</SelectItem></SelectContent></Select></div><DialogFooter><Button type="button" variant="ghost" onClick={() => setEditing(null)}>取消</Button><Button type="submit">保存</Button></DialogFooter></form>}
+        {editing && <form onSubmit={submit} className="space-y-4"><div><label className="mb-2 block text-xs">标题</label><Input autoFocus value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} placeholder="刚刚想到了什么？" /></div><div><label className="mb-2 block text-xs">内容</label><Textarea value={editing.content} onChange={(e) => setEditing({ ...editing, content: e.target.value })} placeholder="补充背景、下一步或链接…" className="min-h-28" /></div><div><label className="mb-2 block text-xs">类型</label><Select value={editing.kind} onValueChange={(value) => setEditing({ ...editing, kind: value as InboxItem["kind"] })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="idea">想法</SelectItem><SelectItem value="task">任务</SelectItem><SelectItem value="note">笔记</SelectItem></SelectContent></Select></div>{operationError ? <p role="alert" className="text-sm text-destructive">{operationError}</p> : null}<DialogFooter><Button type="button" variant="ghost" onClick={() => setEditing(null)} disabled={pending}>取消</Button><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : null}保存</Button></DialogFooter></form>}
       </DialogContent></Dialog>
-      <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除这条收集？</AlertDialogTitle><AlertDialogDescription>“{deleting?.title}”将从本地收件箱永久移除。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { if (deleting) deleteInboxItem(deleting.id); setDeleting(null); }}>删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除这条收集？</AlertDialogTitle><AlertDialogDescription>“{deleting?.title}”将从云端收件箱永久移除。</AlertDialogDescription></AlertDialogHeader>{operationError ? <p role="alert" className="text-sm text-destructive">{operationError}</p> : null}<AlertDialogFooter><AlertDialogCancel disabled={pending}>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={(event) => { event.preventDefault(); void removeSelected(); }} disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : <Trash2 />}删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </>
   );
 }

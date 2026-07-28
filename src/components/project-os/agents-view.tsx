@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Bot, BrainCircuit, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowRight, Bot, BrainCircuit, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,19 +15,45 @@ import { useProjectOS } from "@/components/project-os/project-os-provider";
 import type { Agent } from "@/lib/project-os";
 
 const blank: Agent = { id: "", name: "", role: "", input: "", output: "", status: "draft" };
-const statusTone = { ready: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20", working: "text-primary bg-primary/10 border-primary/20", draft: "text-muted-foreground" };
+const statusTone = {
+  ready: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20",
+  working: "text-primary bg-primary/10 border-primary/20",
+  draft: "text-muted-foreground",
+  paused: "text-amber-300 bg-amber-400/10 border-amber-400/20",
+  error: "text-destructive bg-destructive/10 border-destructive/20",
+};
 
 export function AgentsView() {
-  const { agents, saveAgent, deleteAgent } = useProjectOS();
+  const { agents, projects, saveAgent, deleteAgent } = useProjectOS();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Agent | null>(null);
   const [deleting, setDeleting] = useState<Agent | null>(null);
+  const [pending, setPending] = useState(false);
+  const [operationError, setOperationError] = useState<string>();
   const filtered = useMemo(() => agents.filter((agent) => `${agent.name} ${agent.role}`.toLowerCase().includes(query.toLowerCase())), [agents, query]);
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editing?.name.trim()) return;
-    saveAgent({ ...editing, id: editing.id || crypto.randomUUID(), name: editing.name.trim() });
-    setEditing(null);
+    setPending(true);
+    setOperationError(undefined);
+    const result = await saveAgent({
+      ...editing,
+      id: editing.id || crypto.randomUUID(),
+      name: editing.name.trim(),
+    });
+    setPending(false);
+    if (result.ok) setEditing(null);
+    else setOperationError(result.error.message);
+  };
+
+  const removeSelected = async () => {
+    if (!deleting) return;
+    setPending(true);
+    setOperationError(undefined);
+    const result = await deleteAgent(deleting.id);
+    setPending(false);
+    if (result.ok) setDeleting(null);
+    else setOperationError(result.error.message);
   };
 
   return (
@@ -65,12 +91,16 @@ export function AgentsView() {
             <div className="grid grid-cols-2 gap-3"><div><label className="mb-2 block text-xs">名称</label><Input autoFocus value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Scope" /></div><div><label className="mb-2 block text-xs">角色</label><Input value={editing.role} onChange={(e) => setEditing({ ...editing, role: e.target.value })} placeholder="项目拆解" /></div></div>
             <div><label className="mb-2 block text-xs">输入</label><Input value={editing.input} onChange={(e) => setEditing({ ...editing, input: e.target.value })} placeholder="它接收什么？" /></div>
             <div><label className="mb-2 block text-xs">输出</label><Input value={editing.output} onChange={(e) => setEditing({ ...editing, output: e.target.value })} placeholder="它必须交付什么？" /></div>
-            <div className="grid grid-cols-2 gap-3"><div><label className="mb-2 block text-xs">状态</label><Select value={editing.status} onValueChange={(value) => setEditing({ ...editing, status: value as Agent["status"] })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="ready">Ready</SelectItem><SelectItem value="working">Working</SelectItem></SelectContent></Select></div><div><label className="mb-2 block text-xs">下一 Agent</label><Select value={editing.nextAgent || "none"} onValueChange={(value) => setEditing({ ...editing, nextAgent: value === "none" ? undefined : value })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">无 / 终点</SelectItem>{agents.filter((a) => a.id !== editing.id).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select></div></div>
-            <DialogFooter><Button type="button" variant="ghost" onClick={() => setEditing(null)}>取消</Button><Button type="submit">保存 Agent</Button></DialogFooter>
+            <div className="grid grid-cols-2 gap-3"><div><label className="mb-2 block text-xs">模型</label><Input value={editing.model ?? ""} onChange={(e) => setEditing({ ...editing, model: e.target.value })} placeholder="例如：gpt-5" /></div><div><label className="mb-2 block text-xs">关联项目</label><Select value={editing.projectId || "none"} onValueChange={(value) => setEditing({ ...editing, projectId: value === "none" ? undefined : value })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">未关联</SelectItem>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.title}</SelectItem>)}</SelectContent></Select></div></div>
+            <div><label className="mb-2 block text-xs">工具</label><Input value={(editing.tools ?? []).join(", ")} onChange={(e) => setEditing({ ...editing, tools: e.target.value.split(",").map((tool) => tool.trim()).filter(Boolean) })} placeholder="browser, search, database" /></div>
+            <div className="grid grid-cols-2 gap-3"><div><label className="mb-2 block text-xs">状态</label><Select value={editing.status} onValueChange={(value) => setEditing({ ...editing, status: value as Agent["status"] })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="ready">Ready</SelectItem><SelectItem value="working">Working</SelectItem><SelectItem value="paused">Paused</SelectItem><SelectItem value="error">Error</SelectItem></SelectContent></Select></div><div><label className="mb-2 block text-xs">下一 Agent</label><Select value={editing.nextAgent || "none"} onValueChange={(value) => setEditing({ ...editing, nextAgent: value === "none" ? undefined : value })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">无 / 终点</SelectItem>{agents.filter((a) => a.id !== editing.id).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select></div></div>
+            {operationError ? <p role="alert" className="text-sm text-destructive">{operationError}</p> : null}
+            <DialogFooter><Button type="button" variant="ghost" onClick={() => setEditing(null)} disabled={pending}>取消</Button><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : null}保存 Agent</Button></DialogFooter>
           </form>}
         </DialogContent>
       </Dialog>
-      <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除 Agent “{deleting?.name}”？</AlertDialogTitle><AlertDialogDescription>依赖该 Agent 的工作流节点需要随后手动调整。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => { if (deleting) deleteAgent(deleting.id); setDeleting(null); }}>删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      {operationError ? <p role="alert" className="mt-3 text-sm text-destructive">{operationError}</p> : null}
+      <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>删除 Agent “{deleting?.name}”？</AlertDialogTitle><AlertDialogDescription>依赖该 Agent 的工作流节点需要随后手动调整。</AlertDialogDescription></AlertDialogHeader>{operationError ? <p role="alert" className="text-sm text-destructive">{operationError}</p> : null}<AlertDialogFooter><AlertDialogCancel disabled={pending}>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={(event) => { event.preventDefault(); void removeSelected(); }} disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : <Trash2 />}删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </>
   );
 }

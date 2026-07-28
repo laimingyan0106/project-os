@@ -37,8 +37,11 @@ The Reset Password template must link to the server confirmation route:
 The application supplies `/auth/confirm?next=/auth/update-password` as
 `RedirectTo`. This avoids browser-fragment and same-device PKCE dependencies.
 
-## Remaining acceptance
+## Acceptance evidence
 
-- Complete one real email-confirmation login and one password-reset login against
-  the configured project.
-- Add the public variables to Vercel Preview and verify the deployed callback.
+- A real email confirmation completed against the configured Supabase project.
+- Custom SMTP delivered a recovery email and the server-side token-hash route
+  established a valid recovery session.
+- A different compliant password was saved successfully and used to complete
+  the recovery flow.
+- Public Supabase variables are configured in Vercel Preview.
