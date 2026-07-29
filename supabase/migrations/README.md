@@ -6,3 +6,8 @@ historical scaffolding and must not be edited to represent deployed v0.2 state.
 The first v0.2 migration is reserved as:
 
 `20260727_001_v02_core.sql`
+
+Additional forward-only migrations:
+
+- `20260729_002_workflow_graph_rpc.sql`: transactional workflow graph saves.
+- `20260729_003_v1_snapshot_import.sql`: authenticated, idempotent v0.1 import.

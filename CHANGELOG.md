@@ -33,6 +33,19 @@
   saved, saving, offline, error and conflict states.
 - Added workflow create, duplicate, project association and permanent delete.
 
+### S4 - Local migration
+
+- Added explicit detection and manual import for historical
+  `project-os:v1` browser snapshots.
+- Added strict snapshot validation, untouched seed-data confirmation and safe
+  UUID remapping for legacy short identifiers.
+- Added an authenticated, transactional and idempotent snapshot-import RPC with
+  conflict-copy behavior.
+- Added `migration_runs` success/failure reporting and a 30-day recoverable
+  browser backup after successful import.
+- Updated Settings with cloud refresh status and a Preview-compatible JSON
+  file/paste migration entry point.
+
 ### Added
 
 - S0 baseline documentation, architecture decisions and incremental delivery constraints.

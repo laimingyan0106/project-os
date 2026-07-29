@@ -12,6 +12,8 @@ import {
   archiveProjectAction,
   createWorkflowAction,
   duplicateWorkflowAction,
+  getLocalMigrationStatusAction,
+  importLegacyV1SnapshotAction,
   refreshCloudStateAction,
   removeAgentAction,
   removeInboxItemAction,
@@ -21,6 +23,7 @@ import {
   saveInboxItemAction,
   saveProjectAction,
 } from "@/app/(workspace)/cloud-actions";
+import { LocalMigrationDialog } from "@/components/project-os/local-migration-dialog";
 import {
   actionError,
   type ActionResult,
@@ -31,15 +34,32 @@ import type {
   Project,
   WorkflowSummary,
 } from "@/lib/project-os";
+import {
+  createV1BackupRecord,
+  isV1BackupExpired,
+  type LocalMigrationSummary,
+  V1_BACKUP_KEY,
+  V1_STORAGE_KEY,
+} from "@/lib/migration/v1-snapshot";
 import type { CloudState } from "@/lib/repositories/contracts";
 
 export type SyncStatus = "synced" | "syncing" | "offline" | "error";
+export type LocalMigrationStatus =
+  | "checking"
+  | "not-found"
+  | "available"
+  | "importing"
+  | "success"
+  | "error";
 
 interface StoreContextValue extends CloudState {
   hydrated: boolean;
   syncStatus: SyncStatus;
   syncError?: string;
   lastSyncedAt?: string;
+  localMigrationStatus: LocalMigrationStatus;
+  localMigrationSummary?: LocalMigrationSummary;
+  openLocalMigration: (sourceJson?: string) => void;
   refreshCloudState: () => Promise<ActionResult<CloudState>>;
   saveProject: (project: Project) => Promise<ActionResult<Project>>;
   deleteProject: (id: string) => Promise<ActionResult<Project>>;
@@ -58,6 +78,7 @@ interface StoreContextValue extends CloudState {
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
+const MIGRATION_DISMISSED_KEY = "project-os:v1:migration-dismissed";
 
 function upsert<T extends { id: string }>(items: T[], item: T) {
   return items.some((current) => current.id === item.id)
@@ -82,6 +103,16 @@ export function ProjectOSProvider({
   const [lastSyncedAt, setLastSyncedAt] = useState<string | undefined>(
     initialCloudError ? undefined : new Date().toISOString(),
   );
+  const [localMigrationStatus, setLocalMigrationStatus] =
+    useState<LocalMigrationStatus>("checking");
+  const [localMigrationSummary, setLocalMigrationSummary] =
+    useState<LocalMigrationSummary>();
+  const [migrationDialog, setMigrationDialog] = useState<{
+    open: boolean;
+    key: number;
+    sourceJson?: string;
+  }>({ open: false, key: 0 });
+  const [migrationError, setMigrationError] = useState<string>();
 
   const beginCloudOperation = useCallback(() => {
     if (!navigator.onLine) {
@@ -114,6 +145,64 @@ export function ProjectOSProvider({
     finishCloudOperation(result);
     return result;
   }, [beginCloudOperation, finishCloudOperation]);
+
+  const openLocalMigration = useCallback((sourceJson?: string) => {
+    const detectedSource = sourceJson ?? window.localStorage.getItem(V1_STORAGE_KEY) ?? undefined;
+    setMigrationError(undefined);
+    setMigrationDialog((current) => ({
+      open: true,
+      key: current.key + 1,
+      sourceJson: detectedSource,
+    }));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const backup = window.localStorage.getItem(V1_BACKUP_KEY);
+    if (backup) {
+      try {
+        const parsed = JSON.parse(backup) as { expiresAt?: string };
+        if (!parsed.expiresAt || isV1BackupExpired({ expiresAt: parsed.expiresAt })) {
+          window.localStorage.removeItem(V1_BACKUP_KEY);
+        }
+      } catch {
+        window.localStorage.removeItem(V1_BACKUP_KEY);
+      }
+    }
+
+    const localSnapshot = window.localStorage.getItem(V1_STORAGE_KEY) ?? undefined;
+    void getLocalMigrationStatusAction().then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setLocalMigrationStatus("error");
+        setMigrationError(result.error.message);
+        return;
+      }
+      if (result.data) {
+        setLocalMigrationSummary(result.data);
+        setLocalMigrationStatus("success");
+        return;
+      }
+      if (!localSnapshot) {
+        setLocalMigrationStatus("not-found");
+        return;
+      }
+
+      setLocalMigrationStatus("available");
+      if (!window.sessionStorage.getItem(MIGRATION_DISMISSED_KEY)) {
+        setMigrationDialog((current) => ({
+          open: true,
+          key: current.key + 1,
+          sourceJson: localSnapshot,
+        }));
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -290,12 +379,54 @@ export function ProjectOSProvider({
     return result;
   }, [beginCloudOperation, finishCloudOperation]);
 
+  const importLocalSnapshot = useCallback(async (
+    sourceJson: string,
+    allowSeedImport: boolean,
+  ) => {
+    setLocalMigrationStatus("importing");
+    setMigrationError(undefined);
+    const result = await importLegacyV1SnapshotAction(sourceJson, allowSeedImport);
+    if (!result.ok) {
+      setLocalMigrationStatus("error");
+      setMigrationError(result.error.message);
+      return;
+    }
+
+    const migratedAt = new Date();
+    try {
+      window.localStorage.setItem(
+        V1_BACKUP_KEY,
+        JSON.stringify(createV1BackupRecord(sourceJson, migratedAt)),
+      );
+      if (window.localStorage.getItem(V1_STORAGE_KEY) === sourceJson) {
+        window.localStorage.removeItem(V1_STORAGE_KEY);
+      }
+    } catch {
+      setMigrationError(
+        "云端导入成功，但浏览器无法写入 30 天备份；原始本地数据已保留。",
+      );
+    }
+
+    setLocalMigrationSummary(result.data);
+    setLocalMigrationStatus("success");
+    window.sessionStorage.removeItem(MIGRATION_DISMISSED_KEY);
+    await refreshCloudState();
+  }, [refreshCloudState]);
+
+  const skipLocalMigration = useCallback(() => {
+    window.sessionStorage.setItem(MIGRATION_DISMISSED_KEY, "1");
+    setMigrationDialog((current) => ({ ...current, open: false }));
+  }, []);
+
   const value = useMemo<StoreContextValue>(() => ({
     ...cloud,
     hydrated: true,
     syncStatus,
     syncError,
     lastSyncedAt,
+    localMigrationStatus,
+    localMigrationSummary,
+    openLocalMigration,
     refreshCloudState,
     saveProject,
     deleteProject,
@@ -316,6 +447,9 @@ export function ProjectOSProvider({
     deleteWorkflow,
     duplicateWorkflow,
     lastSyncedAt,
+    localMigrationStatus,
+    localMigrationSummary,
+    openLocalMigration,
     refreshCloudState,
     removeProject,
     saveAgent,
@@ -325,7 +459,24 @@ export function ProjectOSProvider({
     syncStatus,
   ]);
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider value={value}>
+      {children}
+      <LocalMigrationDialog
+        open={migrationDialog.open}
+        dialogKey={migrationDialog.key}
+        initialSourceJson={migrationDialog.sourceJson}
+        importing={localMigrationStatus === "importing"}
+        error={migrationError}
+        summary={migrationDialog.open ? localMigrationSummary : undefined}
+        onOpenChange={(open) => {
+          setMigrationDialog((current) => ({ ...current, open }));
+        }}
+        onImport={importLocalSnapshot}
+        onSkip={skipLocalMigration}
+      />
+    </StoreContext.Provider>
+  );
 }
 
 export function useProjectOS() {

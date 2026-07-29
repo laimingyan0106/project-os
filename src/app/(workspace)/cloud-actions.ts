@@ -12,6 +12,11 @@ import type {
   Workflow,
   WorkflowSummary,
 } from "@/lib/project-os";
+import {
+  type LocalMigrationSummary,
+  normalizeLegacyV1Snapshot,
+  parseLegacyV1Snapshot,
+} from "@/lib/migration/v1-snapshot";
 import type { CloudState } from "@/lib/repositories/contracts";
 import {
   classifyRepositoryFailure,
@@ -20,6 +25,7 @@ import {
 import {
   createRepositories,
   loadCloudState,
+  RepositoryError,
 } from "@/lib/repositories/supabase-repositories";
 import { createClient } from "@/lib/supabase/server";
 
@@ -125,6 +131,18 @@ const workflowGraphSchema = z.object({
   }
 });
 
+const migrationSummarySchema = z.object({
+  projects: z.number().int().nonnegative(),
+  agents: z.number().int().nonnegative(),
+  inbox: z.number().int().nonnegative(),
+  workflows: z.number().int().nonnegative(),
+  nodes: z.number().int().nonnegative(),
+  edges: z.number().int().nonnegative(),
+  conflictCopies: z.number().int().nonnegative(),
+  alreadyImported: z.boolean(),
+  completedAt: z.string(),
+});
+
 function repositoryFailure<T>(
   reason: unknown,
   operation = "cloudAction",
@@ -166,6 +184,96 @@ async function authenticatedRepositories() {
     repositories: createRepositories(supabase, user.id),
     userId: user.id,
   };
+}
+
+export async function getLocalMigrationStatusAction(): Promise<
+  ActionResult<LocalMigrationSummary | null>
+> {
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+
+  const { data, error } = await context.supabase
+    .from("migration_runs")
+    .select("summary")
+    .eq("user_id", context.userId)
+    .eq("source", "project-os")
+    .eq("source_version", "v1")
+    .eq("status", "success")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    return repositoryFailure(
+      new RepositoryError(error.message, error.code),
+      "getLocalMigrationStatus",
+    );
+  }
+  if (!data) return { ok: true, data: null };
+
+  const parsed = migrationSummarySchema.safeParse(data.summary);
+  if (!parsed.success) {
+    return actionError("UNKNOWN_ERROR", "云端迁移记录格式异常，请稍后重试。");
+  }
+  return { ok: true, data: parsed.data };
+}
+
+export async function importLegacyV1SnapshotAction(
+  sourceJson: string,
+  allowSeedImport = false,
+): Promise<ActionResult<LocalMigrationSummary>> {
+  if (sourceJson.length > 5_500_000) {
+    return actionError("VALIDATION_ERROR", "本地快照超过 5.5 MB，无法安全导入。");
+  }
+
+  const parsed = parseLegacyV1Snapshot(sourceJson);
+  if (!parsed.ok) {
+    return actionError("VALIDATION_ERROR", parsed.message);
+  }
+  if (parsed.isSeedEquivalent && !allowSeedImport) {
+    return actionError(
+      "VALIDATION_ERROR",
+      "检测到这是未修改的示例数据，请明确确认后再导入。",
+      { seedConfirmationRequired: true },
+    );
+  }
+
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+
+  const normalized = normalizeLegacyV1Snapshot(parsed.snapshot);
+  const { data, error } = await context.supabase.rpc("import_v1_snapshot", {
+    p_snapshot: normalized,
+  });
+
+  if (error) {
+    const details = getRepositoryFailureDetails(error);
+    await context.supabase.from("migration_runs").insert({
+      user_id: context.userId,
+      source: "project-os",
+      source_version: "v1",
+      status: "failed",
+      summary: {
+        projects: normalized.projects.length,
+        agents: normalized.agents.length,
+        inbox: normalized.inbox.length,
+        workflows: 1,
+        nodes: normalized.workflow.nodes.length,
+        edges: normalized.workflow.edges.length,
+      },
+      error: details.message.slice(0, 500),
+    });
+    return repositoryFailure(
+      new RepositoryError(error.message, error.code),
+      "importLegacyV1Snapshot",
+    );
+  }
+
+  const summary = migrationSummarySchema.safeParse(data);
+  if (!summary.success) {
+    return actionError("UNKNOWN_ERROR", "云端返回了无法识别的迁移结果。");
+  }
+  return { ok: true, data: summary.data };
 }
 
 export async function refreshCloudStateAction(): Promise<ActionResult<CloudState>> {
