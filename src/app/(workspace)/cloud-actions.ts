@@ -14,9 +14,12 @@ import type {
 } from "@/lib/project-os";
 import type { CloudState } from "@/lib/repositories/contracts";
 import {
+  classifyRepositoryFailure,
+  getRepositoryFailureDetails,
+} from "@/lib/repositories/error-mapping";
+import {
   createRepositories,
   loadCloudState,
-  RepositoryError,
 } from "@/lib/repositories/supabase-repositories";
 import { createClient } from "@/lib/supabase/server";
 
@@ -122,24 +125,32 @@ const workflowGraphSchema = z.object({
   }
 });
 
-function repositoryFailure<T>(reason: unknown): ActionResult<T> {
-  if (reason instanceof RepositoryError) {
-    if (reason.code === "42501") {
-      return actionError("FORBIDDEN", "没有权限访问这条数据。");
-    }
-    if (
-      reason.code === "23505"
-      || reason.code === "40001"
-      || reason.code === "409"
-    ) {
-      return actionError("CONFLICT", "数据已发生变化，请刷新后重试。");
-    }
-    if (reason.code === "23503" || reason.code === "22023") {
-      return actionError("VALIDATION_ERROR", "工作流节点或连线数据无效。");
-    }
-    if (/fetch|network/i.test(reason.message)) {
-      return actionError("NETWORK_ERROR", "网络连接失败，草稿尚未保存。");
-    }
+function repositoryFailure<T>(
+  reason: unknown,
+  operation = "cloudAction",
+): ActionResult<T> {
+  const kind = classifyRepositoryFailure(reason);
+  const details = getRepositoryFailureDetails(reason);
+
+  console.error("[project-os] repository operation failed", {
+    operation,
+    kind,
+    code: details.code ?? "unknown",
+    name: details.name ?? "unknown",
+    message: details.message.slice(0, 300),
+  });
+
+  if (kind === "forbidden") {
+    return actionError("FORBIDDEN", "没有权限访问这条数据。");
+  }
+  if (kind === "conflict") {
+    return actionError("CONFLICT", "数据已发生变化，请载入云端最新版。");
+  }
+  if (kind === "validation") {
+    return actionError("VALIDATION_ERROR", "工作流节点或连线数据无效。");
+  }
+  if (kind === "network") {
+    return actionError("NETWORK_ERROR", "网络连接失败，草稿尚未保存。");
   }
   return actionError("UNKNOWN_ERROR", "云端操作失败，请稍后重试。");
 }
@@ -300,7 +311,7 @@ export async function saveWorkflowGraphAction(
       data: await context.repositories.workflows.saveGraph(input),
     };
   } catch (reason) {
-    return repositoryFailure(reason);
+    return repositoryFailure(reason, "saveWorkflowGraph");
   }
 }
 

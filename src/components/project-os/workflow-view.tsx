@@ -300,6 +300,16 @@ export function WorkflowView({
     queueSave();
   };
 
+  const loadCloudVersion = (confirmDiscard = false) => {
+    if (
+      confirmDiscard
+      && !window.confirm("载入云端最新版会放弃本页尚未保存的改动，是否继续？")
+    ) {
+      return;
+    }
+    window.location.reload();
+  };
+
   return (
     <>
       <PageHeader
@@ -351,10 +361,21 @@ export function WorkflowView({
             </p>
           </div>
           {saveStatus === "conflict" ? (
-            <Button variant="outline" onClick={() => window.location.reload()}>
+            <Button variant="outline" onClick={() => loadCloudVersion()}>
               <RotateCcw />
               载入云端最新版
             </Button>
+          ) : saveStatus === "error" ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="ghost" onClick={() => loadCloudVersion(true)}>
+                <RotateCcw />
+                载入云端最新版
+              </Button>
+              <Button variant="outline" onClick={retrySave}>
+                <RotateCcw />
+                重试保存
+              </Button>
+            </div>
           ) : (
             <Button variant="outline" onClick={retrySave}>
               <RotateCcw />
