@@ -13,3 +13,5 @@ Additional forward-only migrations:
 - `20260729_003_v1_snapshot_import.sql`: authenticated, idempotent v0.1 import.
 - `20260730_004_prompts_knowledge.sql`: Prompt version publishing, immutable
   history, Prompt/Knowledge search indexes and hardened RLS.
+- `20260730_005_skills_resources_activity.sql`: Skill hierarchy and experience
+  transactions, Resource ownership checks and safe Activity Log triggers.

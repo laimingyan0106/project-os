@@ -62,6 +62,19 @@
 - Added hardened authenticated RLS, trigram content indexes and array GIN tag
   indexes for the two new modules.
 
+### S6 - Skills, Resources and Activity
+
+- Added a hierarchical Skill Tree with levels and transactional, immutable
+  experience events instead of direct experience overwrites.
+- Added Resource Center search, type filtering, Project links, metadata and
+  Secret Ref guidance with plaintext-secret rejection.
+- Added a safe Activity Log generated from database mutations without storing
+  Prompt bodies, Knowledge bodies, resource notes, tokens or secrets.
+- Replaced the Dashboard hard-coded weekly percentage with real weekly Project
+  completions and processed Inbox activity.
+- Added deterministic priority/status/update sorting, empty states and a
+  six-Agent limit on the Dashboard relay.
+
 ### Added
 
 - S0 baseline documentation, architecture decisions and incremental delivery constraints.

@@ -127,3 +127,54 @@ export interface KnowledgeItem {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Skill {
+  id: string;
+  name: string;
+  parentId?: string;
+  level: number;
+  experience: number;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillEvent {
+  id: string;
+  skillId: string;
+  projectId?: string;
+  delta: number;
+  reason: string;
+  createdAt: string;
+}
+
+export type ResourceType =
+  | "link"
+  | "document"
+  | "api"
+  | "tool"
+  | "account"
+  | "other";
+
+export interface ResourceItem {
+  id: string;
+  projectId?: string;
+  name: string;
+  type: ResourceType;
+  url?: string;
+  notes: string;
+  secretRef?: string;
+  metadata: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  entityType: string;
+  entityId?: string;
+  action: string;
+  summary: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}

@@ -7,6 +7,8 @@ import {
 } from "@/lib/action-result";
 import type {
   Agent,
+  ResourceItem,
+  Skill,
   InboxItem,
   KnowledgeItem,
   Project,
@@ -16,6 +18,7 @@ import type {
   Workflow,
   WorkflowSummary,
 } from "@/lib/project-os";
+import { containsPlaintextSecret } from "@/lib/s6";
 import {
   type LocalMigrationSummary,
   normalizeLegacyV1Snapshot,
@@ -118,6 +121,41 @@ const knowledgeSchema = z.object({
   tags: tagsSchema,
   sourceUrl: z.string().url().max(2_000).optional(),
   archivedAt: z.string().datetime().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+const skillSchema = z.object({
+  id: uuid,
+  name: z.string().trim().min(1).max(160),
+  parentId: uuid.optional(),
+  level: z.number().int().min(1).max(100),
+  experience: z.number().int().nonnegative(),
+  description: z.string().max(5_000),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).refine((skill) => skill.parentId !== skill.id, {
+  message: "技能不能将自己设为父级。",
+  path: ["parentId"],
+});
+const skillExperienceSchema = z.object({
+  skillId: uuid,
+  projectId: uuid.optional(),
+  delta: z.number().int().min(-100_000).max(100_000).refine((value) => value !== 0),
+  reason: z.string().trim().min(1).max(500),
+});
+const metadataSchema = z.record(
+  z.string().trim().min(1).max(80),
+  z.string().max(1_000),
+);
+const resourceSchema = z.object({
+  id: uuid,
+  projectId: uuid.optional(),
+  name: z.string().trim().min(1).max(200),
+  type: z.enum(["link", "document", "api", "tool", "account", "other"]),
+  url: z.string().url().max(2_000).optional(),
+  notes: z.string().max(10_000),
+  secretRef: z.string().max(500).optional(),
+  metadata: metadataSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -642,5 +680,106 @@ export async function removeKnowledgeAction(
     return { ok: true, data: null };
   } catch (reason) {
     return repositoryFailure(reason, "removeKnowledge");
+  }
+}
+
+export async function saveSkillAction(
+  input: Skill,
+): Promise<ActionResult<Skill>> {
+  const parsed = skillSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "请检查技能名称、等级和父级关系。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.skills.save(parsed.data),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason, "saveSkill");
+  }
+}
+
+export async function addSkillExperienceAction(input: {
+  skillId: string;
+  projectId?: string;
+  delta: number;
+  reason: string;
+}): Promise<ActionResult<{ skill: Skill; event: import("@/lib/project-os").SkillEvent }>> {
+  const parsed = skillExperienceSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "经验变化不能为 0，并且必须填写原因。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.skills.addExperience(parsed.data),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason, "addSkillExperience");
+  }
+}
+
+export async function removeSkillAction(
+  id: string,
+): Promise<ActionResult<null>> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return actionError("VALIDATION_ERROR", "技能编号无效。");
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    await context.repositories.skills.remove(parsed.data);
+    return { ok: true, data: null };
+  } catch (reason) {
+    return repositoryFailure(reason, "removeSkill");
+  }
+}
+
+export async function saveResourceAction(
+  input: ResourceItem,
+): Promise<ActionResult<ResourceItem>> {
+  const parsed = resourceSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "请检查资源名称、类型、URL 和元数据。");
+  }
+  const searchable = [
+    parsed.data.notes,
+    parsed.data.url ?? "",
+    ...Object.entries(parsed.data.metadata).flat(),
+  ].join("\n");
+  if (containsPlaintextSecret(searchable)) {
+    return actionError(
+      "VALIDATION_ERROR",
+      "检测到疑似明文密钥。请删除密钥，仅在 Secret Ref 中填写密钥名称或托管位置。",
+    );
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.resources.save(parsed.data),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason, "saveResource");
+  }
+}
+
+export async function removeResourceAction(
+  id: string,
+): Promise<ActionResult<null>> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return actionError("VALIDATION_ERROR", "资源编号无效。");
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    await context.repositories.resources.remove(parsed.data);
+    return { ok: true, data: null };
+  } catch (reason) {
+    return repositoryFailure(reason, "removeResource");
   }
 }

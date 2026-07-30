@@ -58,3 +58,16 @@ type ActionResult<T> =
 Authorization failures are never translated into empty collections. User-facing
 messages remain actionable while logs exclude prompt bodies, knowledge bodies,
 tokens and secrets.
+
+## ADR-006: Experience and activity are append-only facts
+
+**Status:** Accepted for v0.2
+
+Skill experience changes use one authenticated database transaction that writes
+an event and updates the cached total. The UI cannot directly overwrite total
+experience. Workspace activity is captured by database triggers so Dashboard
+metrics are based on persisted facts rather than client assumptions.
+
+Activity summaries contain only entity type, identifier, action and a short
+title/name. Prompt and Knowledge bodies, resource notes, tokens and secrets are
+never copied into the activity stream.

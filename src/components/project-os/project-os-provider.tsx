@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  addSkillExperienceAction,
   archiveKnowledgeAction,
   archiveProjectAction,
   createPromptAction,
@@ -22,10 +23,14 @@ import {
   removeInboxItemAction,
   removeProjectAction,
   removePromptAction,
+  removeResourceAction,
+  removeSkillAction,
   removeWorkflowAction,
   saveAgentAction,
   saveInboxItemAction,
   saveKnowledgeAction,
+  saveResourceAction,
+  saveSkillAction,
   saveProjectAction,
   publishPromptVersionAction,
   updatePromptMetadataAction,
@@ -43,6 +48,9 @@ import type {
   PromptAsset,
   PromptCreateInput,
   PromptVersionInput,
+  ResourceItem,
+  Skill,
+  SkillEvent,
   WorkflowSummary,
 } from "@/lib/project-os";
 import {
@@ -96,6 +104,16 @@ interface StoreContextValue extends CloudState {
   saveKnowledge: (item: KnowledgeItem) => Promise<ActionResult<KnowledgeItem>>;
   archiveKnowledge: (id: string) => Promise<ActionResult<KnowledgeItem>>;
   deleteKnowledge: (id: string) => Promise<ActionResult<null>>;
+  saveSkill: (skill: Skill) => Promise<ActionResult<Skill>>;
+  addSkillExperience: (input: {
+    skillId: string;
+    projectId?: string;
+    delta: number;
+    reason: string;
+  }) => Promise<ActionResult<{ skill: Skill; event: SkillEvent }>>;
+  deleteSkill: (id: string) => Promise<ActionResult<null>>;
+  saveResource: (resource: ResourceItem) => Promise<ActionResult<ResourceItem>>;
+  deleteResource: (id: string) => Promise<ActionResult<null>>;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -511,6 +529,90 @@ export function ProjectOSProvider({
     return result;
   }, [beginCloudOperation, finishCloudOperation]);
 
+  const saveSkill = useCallback(async (skill: Skill) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，技能尚未保存。");
+    }
+    const result = await saveSkillAction(skill);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        skills: upsert(state.skills, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const addSkillExperience = useCallback(async (input: {
+    skillId: string;
+    projectId?: string;
+    delta: number;
+    reason: string;
+  }) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，经验记录尚未保存。");
+    }
+    const result = await addSkillExperienceAction(input);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        skills: upsert(state.skills, result.data.skill),
+        skillEvents: [result.data.event, ...state.skillEvents],
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const deleteSkill = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，技能尚未删除。");
+    }
+    const result = await removeSkillAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        skills: state.skills
+          .filter((skill) => skill.id !== id)
+          .map((skill) => skill.parentId === id ? { ...skill, parentId: undefined } : skill),
+        skillEvents: state.skillEvents.filter((event) => event.skillId !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const saveResource = useCallback(async (resource: ResourceItem) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，资源尚未保存。");
+    }
+    const result = await saveResourceAction(resource);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        resources: upsert(state.resources, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const deleteResource = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，资源尚未删除。");
+    }
+    const result = await removeResourceAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        resources: state.resources.filter((resource) => resource.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
   const importLocalSnapshot = useCallback(async (
     sourceJson: string,
     allowSeedImport: boolean,
@@ -578,7 +680,13 @@ export function ProjectOSProvider({
     saveKnowledge,
     archiveKnowledge,
     deleteKnowledge,
+    saveSkill,
+    addSkillExperience,
+    deleteSkill,
+    saveResource,
+    deleteResource,
   }), [
+    addSkillExperience,
     archiveKnowledge,
     cloud,
     createPrompt,
@@ -588,6 +696,8 @@ export function ProjectOSProvider({
     deleteProject,
     deleteKnowledge,
     deletePrompt,
+    deleteResource,
+    deleteSkill,
     deleteWorkflow,
     duplicateWorkflow,
     lastSyncedAt,
@@ -599,6 +709,8 @@ export function ProjectOSProvider({
     saveAgent,
     saveInboxItem,
     saveKnowledge,
+    saveResource,
+    saveSkill,
     saveProject,
     publishPromptVersion,
     syncError,

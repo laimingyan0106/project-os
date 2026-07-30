@@ -25,6 +25,10 @@ export default async function WorkspaceLayout({
     workflows: [],
     prompts: [],
     knowledge: [],
+    skills: [],
+    skillEvents: [],
+    resources: [],
+    activities: [],
   };
   let initialCloudError: string | undefined;
   try {

@@ -9,6 +9,9 @@ const protectedRoutes = [
   "/inbox",
   "/prompts",
   "/knowledge",
+  "/skills",
+  "/resources",
+  "/activity",
   "/settings",
 ];
 

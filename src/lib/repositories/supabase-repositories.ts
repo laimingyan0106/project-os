@@ -3,21 +3,28 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Agent,
+  ActivityLog,
   InboxItem,
   KnowledgeItem,
   Project,
   PromptAsset,
   PromptVersion,
+  ResourceItem,
+  Skill,
+  SkillEvent,
   Workflow,
   WorkflowSummary,
 } from "@/lib/project-os";
 import type {
+  ActivityRepository,
   AgentRepository,
   CloudState,
   InboxRepository,
   KnowledgeRepository,
   ProjectRepository,
   PromptRepository,
+  ResourceRepository,
+  SkillRepository,
   WorkflowRepository,
 } from "@/lib/repositories/contracts";
 
@@ -135,6 +142,60 @@ function knowledgeFromRow(row: Row): KnowledgeItem {
     archivedAt: row.archived_at ? String(row.archived_at) : undefined,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+function skillFromRow(row: Row): Skill {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ""),
+    parentId: row.parent_id ? String(row.parent_id) : undefined,
+    level: Number(row.level ?? 1),
+    experience: Number(row.experience ?? 0),
+    description: String(row.description ?? ""),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+function skillEventFromRow(row: Row): SkillEvent {
+  return {
+    id: String(row.id),
+    skillId: String(row.skill_id),
+    projectId: row.project_id ? String(row.project_id) : undefined,
+    delta: Number(row.delta ?? 0),
+    reason: String(row.reason ?? ""),
+    createdAt: String(row.created_at ?? ""),
+  };
+}
+
+function resourceFromRow(row: Row): ResourceItem {
+  const metadata = jsonObject(row.metadata);
+  return {
+    id: String(row.id),
+    projectId: row.project_id ? String(row.project_id) : undefined,
+    name: String(row.name ?? ""),
+    type: row.type as ResourceItem["type"],
+    url: row.url ? String(row.url) : undefined,
+    notes: String(row.notes ?? ""),
+    secretRef: row.secret_ref ? String(row.secret_ref) : undefined,
+    metadata: Object.fromEntries(
+      Object.entries(metadata).map(([key, value]) => [key, String(value)]),
+    ),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+function activityFromRow(row: Row): ActivityLog {
+  return {
+    id: String(row.id),
+    entityType: String(row.entity_type ?? ""),
+    entityId: row.entity_id ? String(row.entity_id) : undefined,
+    action: String(row.action ?? ""),
+    summary: String(row.summary ?? ""),
+    metadata: jsonObject(row.metadata),
+    createdAt: String(row.created_at ?? ""),
   };
 }
 
@@ -733,6 +794,145 @@ class SupabaseKnowledgeRepository implements KnowledgeRepository {
   }
 }
 
+class SupabaseSkillRepository implements SkillRepository {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly userId: string,
+  ) {}
+
+  async getTree() {
+    const { data, error } = await this.client
+      .from("skills")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("name", { ascending: true });
+    assertNoError(error);
+    return ((data ?? []) as Row[]).map(skillFromRow);
+  }
+
+  async listEvents() {
+    const { data, error } = await this.client
+      .from("skill_events")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    assertNoError(error);
+    return ((data ?? []) as Row[]).map(skillEventFromRow);
+  }
+
+  async save(skill: Skill) {
+    const payload = {
+      id: skill.id,
+      user_id: this.userId,
+      name: skill.name,
+      parent_id: skill.parentId ?? null,
+      level: skill.level,
+      description: skill.description,
+    };
+    const { data, error } = await this.client
+      .from("skills")
+      .upsert(payload)
+      .select()
+      .single();
+    assertNoError(error);
+    return skillFromRow(data as Row);
+  }
+
+  async addExperience(input: {
+    skillId: string;
+    projectId?: string;
+    delta: number;
+    reason: string;
+  }) {
+    const { data, error } = await this.client.rpc("add_skill_experience", {
+      p_skill_id: input.skillId,
+      p_project_id: input.projectId ?? null,
+      p_delta: input.delta,
+      p_reason: input.reason,
+    });
+    assertNoError(error);
+    const result = jsonObject(data);
+    return {
+      skill: skillFromRow(jsonObject(result.skill)),
+      event: skillEventFromRow(jsonObject(result.event)),
+    };
+  }
+
+  async remove(id: string) {
+    const { error } = await this.client
+      .from("skills")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("id", id);
+    assertNoError(error);
+  }
+}
+
+class SupabaseResourceRepository implements ResourceRepository {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly userId: string,
+  ) {}
+
+  async list() {
+    const { data, error } = await this.client
+      .from("resources")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("updated_at", { ascending: false });
+    assertNoError(error);
+    return ((data ?? []) as Row[]).map(resourceFromRow);
+  }
+
+  async save(resource: ResourceItem) {
+    const { data, error } = await this.client
+      .from("resources")
+      .upsert({
+        id: resource.id,
+        user_id: this.userId,
+        project_id: resource.projectId ?? null,
+        name: resource.name,
+        type: resource.type,
+        url: resource.url ?? null,
+        notes: resource.notes,
+        secret_ref: resource.secretRef ?? null,
+        metadata: resource.metadata,
+      })
+      .select()
+      .single();
+    assertNoError(error);
+    return resourceFromRow(data as Row);
+  }
+
+  async remove(id: string) {
+    const { error } = await this.client
+      .from("resources")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("id", id);
+    assertNoError(error);
+  }
+}
+
+class SupabaseActivityRepository implements ActivityRepository {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly userId: string,
+  ) {}
+
+  async list(limit = 100) {
+    const { data, error } = await this.client
+      .from("activity_logs")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(Math.min(Math.max(limit, 1), 250));
+    assertNoError(error);
+    return ((data ?? []) as Row[]).map(activityFromRow);
+  }
+}
+
 export function createRepositories(client: SupabaseClient, userId: string) {
   return {
     projects: new SupabaseProjectRepository(client, userId),
@@ -741,6 +941,9 @@ export function createRepositories(client: SupabaseClient, userId: string) {
     workflows: new SupabaseWorkflowRepository(client, userId),
     prompts: new SupabasePromptRepository(client, userId),
     knowledge: new SupabaseKnowledgeRepository(client, userId),
+    skills: new SupabaseSkillRepository(client, userId),
+    resources: new SupabaseResourceRepository(client, userId),
+    activities: new SupabaseActivityRepository(client, userId),
   };
 }
 
@@ -749,13 +952,39 @@ export async function loadCloudState(
   userId: string,
 ): Promise<CloudState> {
   const repositories = createRepositories(client, userId);
-  const [projects, inbox, agents, workflows, prompts, knowledge] = await Promise.all([
+  const [
+    projects,
+    inbox,
+    agents,
+    workflows,
+    prompts,
+    knowledge,
+    skills,
+    skillEvents,
+    resources,
+    activities,
+  ] = await Promise.all([
     repositories.projects.list(),
     repositories.inbox.list(),
     repositories.agents.list(),
     repositories.workflows.list(),
     repositories.prompts.list(),
     repositories.knowledge.list(),
+    repositories.skills.getTree(),
+    repositories.skills.listEvents(),
+    repositories.resources.list(),
+    repositories.activities.list(),
   ]);
-  return { projects, inbox, agents, workflows, prompts, knowledge };
+  return {
+    projects,
+    inbox,
+    agents,
+    workflows,
+    prompts,
+    knowledge,
+    skills,
+    skillEvents,
+    resources,
+    activities,
+  };
 }

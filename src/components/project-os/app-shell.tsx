@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bot, BookOpenText, Boxes, ChevronRight, Cloud, CloudOff, Command as CommandIcon,
-  FileCode2, FolderKanban, Inbox, LayoutDashboard, LoaderCircle, LogOut, Menu,
-  RefreshCw, Search, Settings2, TriangleAlert, Workflow, Zap,
+  Activity, Bot, BookOpenText, ChevronRight, Cloud, CloudOff, Command as CommandIcon,
+  FileBox, FileCode2, FolderKanban, GitBranch, Inbox, LayoutDashboard, LoaderCircle,
+  LogOut, Menu, RefreshCw, Search, Settings2, TriangleAlert, Workflow, Zap,
 } from "lucide-react";
 import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,10 @@ const primaryNav = [
 const expansionNav = [
   { href: "/prompts", label: "Prompt Library", icon: FileCode2, key: "G R" },
   { href: "/knowledge", label: "Knowledge Base", icon: BookOpenText, key: "G K" },
+  { href: "/skills", label: "Skill Tree", icon: GitBranch, key: "G S" },
+  { href: "/resources", label: "Resources", icon: FileBox, key: "G U" },
+  { href: "/activity", label: "Activity Log", icon: Activity, key: "G L" },
 ];
-const futureNav = ["Skill Tree", "Resources"];
 
 function Navigation({ onNavigate, userEmail }: { onNavigate?: () => void; userEmail: string }) {
   const pathname = usePathname();
@@ -75,12 +77,6 @@ function Navigation({ onNavigate, userEmail }: { onNavigate?: () => void; userEm
               </Link>
             );
           })}
-          {futureNav.map((label) => (
-            <div key={label} className="flex h-9 items-center gap-3 px-3 text-xs text-muted-foreground/45">
-              <Boxes className="size-3.5" /><span className="flex-1">{label}</span>
-              <span className="rounded border px-1.5 py-0.5 font-mono text-[8px] uppercase">soon</span>
-            </div>
-          ))}
         </div>
       </nav>
       <div className="border-t p-3">
