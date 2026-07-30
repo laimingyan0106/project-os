@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bot, Boxes, ChevronRight, Cloud, CloudOff, Command as CommandIcon,
+  Bot, BookOpenText, Boxes, ChevronRight, Cloud, CloudOff, Command as CommandIcon,
   FileCode2, FolderKanban, Inbox, LayoutDashboard, LoaderCircle, LogOut, Menu,
   RefreshCw, Search, Settings2, TriangleAlert, Workflow, Zap,
 } from "lucide-react";
@@ -28,8 +28,9 @@ const primaryNav = [
 
 const expansionNav = [
   { href: "/prompts", label: "Prompt Library", icon: FileCode2, key: "G R" },
+  { href: "/knowledge", label: "Knowledge Base", icon: BookOpenText, key: "G K" },
 ];
-const futureNav = ["Knowledge Base", "Skill Tree", "Resources"];
+const futureNav = ["Skill Tree", "Resources"];
 
 function Navigation({ onNavigate, userEmail }: { onNavigate?: () => void; userEmail: string }) {
   const pathname = usePathname();

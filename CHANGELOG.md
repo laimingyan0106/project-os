@@ -51,6 +51,17 @@
   completed-import summary on Settings.
 - Added a credential-free v0.1 test snapshot for migration acceptance checks.
 
+### S5 - Prompt Library and Knowledge Base
+
+- Added searchable Prompt assets with project links, tags, detected
+  `{{variable}}` placeholders, copy actions and version-aware editing.
+- Added transactional Prompt version publishing with immutable historical
+  versions and account-scoped concurrency control.
+- Added a searchable Knowledge Base for notes, decisions, lessons and
+  references, including source URLs, project links, archiving and deletion.
+- Added hardened authenticated RLS, trigram content indexes and array GIN tag
+  indexes for the two new modules.
+
 ### Added
 
 - S0 baseline documentation, architecture decisions and incremental delivery constraints.

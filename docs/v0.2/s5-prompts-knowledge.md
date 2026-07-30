@@ -1,6 +1,6 @@
 # S5 Prompt Library and Knowledge Base
 
-Status: In progress.
+Status: Complete in code; hosted acceptance pending.
 
 ## Database prerequisite
 
