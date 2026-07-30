@@ -31,6 +31,10 @@ describe("S5 Prompt and Knowledge migration", () => {
     expect(migration).toContain("to authenticated");
     expect(migration).toContain("(select auth.uid()) = user_id");
     expect(migration).toContain("gin_trgm_ops");
+    expect(migration).not.toMatch(
+      /create index[\s\S]{0,300}array_to_string/,
+    );
+    expect(migration).toContain("tags @> array[btrim(p_query)]::text[]");
     expect(migration).toContain("search_knowledge_items");
   });
 });

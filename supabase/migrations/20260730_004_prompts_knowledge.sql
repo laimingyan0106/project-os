@@ -52,13 +52,11 @@ create index if not exists knowledge_items_user_project_idx
 
 create index if not exists prompts_search_trgm_idx
   on public.prompts using gin (
-    lower(title || ' ' || description || ' ' || array_to_string(tags, ' '))
-    gin_trgm_ops
+    lower(title || ' ' || description) gin_trgm_ops
   );
 create index if not exists knowledge_items_search_trgm_idx
   on public.knowledge_items using gin (
-    lower(title || ' ' || content || ' ' || array_to_string(tags, ' '))
-    gin_trgm_ops
+    lower(title || ' ' || content) gin_trgm_ops
   );
 
 drop policy if exists "select own rows" on public.prompts;
@@ -202,10 +200,9 @@ as $$
   where prompt.user_id = (select auth.uid())
     and (
       nullif(btrim(p_query), '') is null
-      or lower(
-        prompt.title || ' ' || prompt.description || ' '
-        || array_to_string(prompt.tags, ' ')
-      ) like '%' || lower(p_query) || '%'
+      or lower(prompt.title || ' ' || prompt.description)
+        like '%' || lower(p_query) || '%'
+      or prompt.tags @> array[btrim(p_query)]::text[]
     )
   order by prompt.updated_at desc;
 $$;
@@ -224,10 +221,9 @@ as $$
     and item.archived_at is null
     and (
       nullif(btrim(p_query), '') is null
-      or lower(
-        item.title || ' ' || item.content || ' '
-        || array_to_string(item.tags, ' ')
-      ) like '%' || lower(p_query) || '%'
+      or lower(item.title || ' ' || item.content)
+        like '%' || lower(p_query) || '%'
+      or item.tags @> array[btrim(p_query)]::text[]
     )
   order by item.updated_at desc;
 $$;
