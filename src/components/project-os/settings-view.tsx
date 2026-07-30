@@ -126,12 +126,11 @@ export function SettingsView({ userEmail }: { userEmail: string }) {
               disabled={
                 localMigrationStatus === "checking"
                 || localMigrationStatus === "importing"
-                || localMigrationStatus === "success"
               }
               onClick={() => openLocalMigration()}
             >
               <Import />
-              导入 v0.1 数据
+              {localMigrationStatus === "success" ? "再次导入 v0.1 数据" : "导入 v0.1 数据"}
             </Button>
           </CardContent>
         </Card>

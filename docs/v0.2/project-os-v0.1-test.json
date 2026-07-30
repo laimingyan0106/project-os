@@ -1,0 +1,98 @@
+{
+  "projects": [
+    {
+      "id": "test-project-001",
+      "title": "Project OS v0.1 迁移测试项目",
+      "goal": "验证旧版本数据能够安全、完整并且幂等地导入云端。",
+      "description": "这是 Codex 生成的测试数据，不包含真实账号信息。",
+      "status": "active",
+      "priority": "high",
+      "workflowId": "test-workflow-001",
+      "updatedAt": "2026-07-30 14:30"
+    }
+  ],
+  "agents": [
+    {
+      "id": "test-agent-scope",
+      "name": "Scope Test",
+      "role": "拆解测试目标",
+      "input": "迁移测试需求",
+      "output": "可执行的测试步骤",
+      "nextAgent": "test-agent-proof",
+      "status": "working"
+    },
+    {
+      "id": "test-agent-proof",
+      "name": "Proof Test",
+      "role": "检查迁移结果",
+      "input": "已导入的数据",
+      "output": "测试结论",
+      "status": "ready"
+    }
+  ],
+  "inbox": [
+    {
+      "id": "test-inbox-001",
+      "title": "检查 v0.1 迁移结果",
+      "content": "确认项目、Agent、Inbox 和 Workflow 均已出现在云端。",
+      "kind": "task",
+      "processed": false,
+      "createdAt": "2026-07-30 14:30"
+    }
+  ],
+  "workflow": {
+    "id": "test-workflow-001",
+    "title": "v0.1 Migration Test Flow",
+    "nodes": [
+      {
+        "id": "test-node-trigger",
+        "position": {
+          "x": 40,
+          "y": 140
+        },
+        "data": {
+          "label": "开始迁移测试",
+          "kind": "trigger",
+          "owner": "You"
+        }
+      },
+      {
+        "id": "test-node-agent",
+        "position": {
+          "x": 320,
+          "y": 140
+        },
+        "data": {
+          "label": "检查导入数据",
+          "kind": "agent",
+          "owner": "Proof Test"
+        }
+      },
+      {
+        "id": "test-node-output",
+        "position": {
+          "x": 600,
+          "y": 140
+        },
+        "data": {
+          "label": "输出测试结论",
+          "kind": "output",
+          "owner": "You"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "test-edge-001",
+        "source": "test-node-trigger",
+        "target": "test-node-agent",
+        "animated": true
+      },
+      {
+        "id": "test-edge-002",
+        "source": "test-node-agent",
+        "target": "test-node-output"
+      }
+    ]
+  }
+}

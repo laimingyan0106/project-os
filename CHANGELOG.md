@@ -45,6 +45,9 @@
   browser backup after successful import.
 - Updated Settings with cloud refresh status and a Preview-compatible JSON
   file/paste migration entry point.
+- Kept the migration entry available after success so the same snapshot can
+  be resubmitted to verify server-side idempotency.
+- Added a credential-free v0.1 test snapshot for migration acceptance checks.
 
 ### Added
 
