@@ -8,7 +8,11 @@ import {
 import type {
   Agent,
   InboxItem,
+  KnowledgeItem,
   Project,
+  PromptAsset,
+  PromptCreateInput,
+  PromptVersionInput,
   Workflow,
   WorkflowSummary,
 } from "@/lib/project-os";
@@ -77,6 +81,45 @@ const workflowCreateSchema = z.object({
   title: z.string().trim().min(1).max(160),
   description: z.string().max(2_000).optional(),
   projectId: uuid.optional(),
+});
+
+const tagsSchema = z.array(z.string().trim().min(1).max(80)).max(30);
+const promptVersionInputSchema = z.object({
+  content: z.string().trim().min(1).max(100_000),
+  model: z.string().max(120),
+  variables: z.array(z.string().trim().min(1).max(120)).max(100),
+  notes: z.string().max(5_000),
+});
+const promptCreateSchema = z.object({
+  id: uuid,
+  projectId: uuid.optional(),
+  title: z.string().trim().min(1).max(160),
+  description: z.string().max(2_000),
+  tags: tagsSchema,
+  ...promptVersionInputSchema.shape,
+});
+const promptMetadataSchema = z.object({
+  id: uuid,
+  projectId: uuid.optional(),
+  title: z.string().trim().min(1).max(160),
+  description: z.string().max(2_000),
+  tags: tagsSchema,
+  currentVersionId: uuid.optional(),
+  currentVersion: z.any().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+const knowledgeSchema = z.object({
+  id: uuid,
+  projectId: uuid.optional(),
+  title: z.string().trim().min(1).max(200),
+  content: z.string().max(100_000),
+  type: z.enum(["note", "decision", "lesson", "reference"]),
+  tags: tagsSchema,
+  sourceUrl: z.string().url().max(2_000).optional(),
+  archivedAt: z.string().datetime().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 
 const workflowNodeSchema = z.object({
@@ -456,5 +499,148 @@ export async function removeWorkflowAction(
     return { ok: true, data: null };
   } catch (reason) {
     return repositoryFailure(reason);
+  }
+}
+
+export async function createPromptAction(
+  input: PromptCreateInput,
+): Promise<ActionResult<PromptAsset>> {
+  const parsed = promptCreateSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "请检查 Prompt 标题、正文、标签和变量。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+
+  try {
+    const prompt = await context.repositories.prompts.create({
+      id: parsed.data.id,
+      projectId: parsed.data.projectId,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      tags: parsed.data.tags,
+    });
+    try {
+      await context.repositories.prompts.createVersion(prompt.id, {
+        content: parsed.data.content,
+        model: parsed.data.model,
+        variables: parsed.data.variables,
+        notes: parsed.data.notes,
+      });
+    } catch (reason) {
+      await context.repositories.prompts.remove(prompt.id);
+      throw reason;
+    }
+    const created = await context.repositories.prompts.get(prompt.id);
+    if (!created) throw new RepositoryError("prompt not found after create", "P0002");
+    return { ok: true, data: created };
+  } catch (reason) {
+    return repositoryFailure(reason, "createPrompt");
+  }
+}
+
+export async function updatePromptMetadataAction(
+  input: PromptAsset,
+): Promise<ActionResult<PromptAsset>> {
+  const parsed = promptMetadataSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "请检查 Prompt 标题、描述和标签。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.prompts.updateMetadata(
+        parsed.data as PromptAsset,
+      ),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason, "updatePromptMetadata");
+  }
+}
+
+export async function publishPromptVersionAction(
+  promptId: string,
+  input: PromptVersionInput,
+): Promise<ActionResult<PromptAsset>> {
+  const parsedId = uuid.safeParse(promptId);
+  const parsed = promptVersionInputSchema.safeParse(input);
+  if (!parsedId.success || !parsed.success) {
+    return actionError("VALIDATION_ERROR", "请检查 Prompt 正文、模型、变量和备注。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    await context.repositories.prompts.createVersion(parsedId.data, parsed.data);
+    const prompt = await context.repositories.prompts.get(parsedId.data);
+    if (!prompt) throw new RepositoryError("prompt not found after publish", "P0002");
+    return { ok: true, data: prompt };
+  } catch (reason) {
+    return repositoryFailure(reason, "publishPromptVersion");
+  }
+}
+
+export async function removePromptAction(id: string): Promise<ActionResult<null>> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return actionError("VALIDATION_ERROR", "Prompt 编号无效。");
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    await context.repositories.prompts.remove(parsed.data);
+    return { ok: true, data: null };
+  } catch (reason) {
+    return repositoryFailure(reason, "removePrompt");
+  }
+}
+
+export async function saveKnowledgeAction(
+  input: KnowledgeItem,
+): Promise<ActionResult<KnowledgeItem>> {
+  const parsed = knowledgeSchema.safeParse(input);
+  if (!parsed.success) {
+    return actionError("VALIDATION_ERROR", "请检查知识条目的标题、正文、类型和来源链接。");
+  }
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.knowledge.save(parsed.data),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason, "saveKnowledge");
+  }
+}
+
+export async function archiveKnowledgeAction(
+  id: string,
+): Promise<ActionResult<KnowledgeItem>> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return actionError("VALIDATION_ERROR", "知识条目编号无效。");
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    return {
+      ok: true,
+      data: await context.repositories.knowledge.archive(parsed.data),
+    };
+  } catch (reason) {
+    return repositoryFailure(reason, "archiveKnowledge");
+  }
+}
+
+export async function removeKnowledgeAction(
+  id: string,
+): Promise<ActionResult<null>> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return actionError("VALIDATION_ERROR", "知识条目编号无效。");
+  const context = await authenticatedRepositories();
+  if (!context) return actionError("AUTH_REQUIRED", "登录已过期，请重新登录。");
+  try {
+    await context.repositories.knowledge.remove(parsed.data);
+    return { ok: true, data: null };
+  } catch (reason) {
+    return repositoryFailure(reason, "removeKnowledge");
   }
 }

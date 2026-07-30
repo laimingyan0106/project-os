@@ -72,3 +72,58 @@ export interface ProjectOSState {
   inbox: InboxItem[];
   workflow: Workflow;
 }
+
+export interface PromptVersion {
+  id: string;
+  promptId: string;
+  version: number;
+  content: string;
+  model: string;
+  variables: string[];
+  notes: string;
+  createdAt: string;
+}
+
+export interface PromptAsset {
+  id: string;
+  projectId?: string;
+  title: string;
+  description: string;
+  tags: string[];
+  currentVersionId?: string;
+  currentVersion?: PromptVersion;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PromptCreateInput {
+  id: string;
+  projectId?: string;
+  title: string;
+  description: string;
+  tags: string[];
+  content: string;
+  model: string;
+  variables: string[];
+  notes: string;
+}
+
+export type PromptVersionInput = Pick<
+  PromptVersion,
+  "content" | "model" | "variables" | "notes"
+>;
+
+export type KnowledgeType = "note" | "decision" | "lesson" | "reference";
+
+export interface KnowledgeItem {
+  id: string;
+  projectId?: string;
+  title: string;
+  content: string;
+  type: KnowledgeType;
+  tags: string[];
+  sourceUrl?: string;
+  archivedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}

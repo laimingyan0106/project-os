@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bot, Boxes, ChevronRight, Cloud, CloudOff, Command as CommandIcon,
-  FolderKanban, Inbox, LayoutDashboard, LoaderCircle, LogOut, Menu, RefreshCw,
-  Search, Settings2, TriangleAlert, Workflow, Zap,
+  FileCode2, FolderKanban, Inbox, LayoutDashboard, LoaderCircle, LogOut, Menu,
+  RefreshCw, Search, Settings2, TriangleAlert, Workflow, Zap,
 } from "lucide-react";
 import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,10 @@ const primaryNav = [
   { href: "/agents", label: "Agent Center", icon: Bot, key: "G A" },
 ];
 
-const futureNav = ["Prompt Library", "Knowledge Base", "Skill Tree", "Resources"];
+const expansionNav = [
+  { href: "/prompts", label: "Prompt Library", icon: FileCode2, key: "G R" },
+];
+const futureNav = ["Knowledge Base", "Skill Tree", "Resources"];
 
 function Navigation({ onNavigate, userEmail }: { onNavigate?: () => void; userEmail: string }) {
   const pathname = usePathname();
@@ -59,6 +62,18 @@ function Navigation({ onNavigate, userEmail }: { onNavigate?: () => void; userEm
         </div>
         <div className="space-y-1">
           <p className="px-3 pb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">Expansion / 02</p>
+          {expansionNav.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link key={item.href} href={item.href} onClick={onNavigate}
+                className={cn("group flex h-10 items-center gap-3 rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  active && "bg-accent text-foreground shadow-[inset_2px_0_0_var(--primary)]")}>
+                <item.icon className={cn("size-4", active && "text-primary")} />
+                <span className="flex-1">{item.label}</span>
+                <span className="font-mono text-[9px] text-muted-foreground/40">{item.key}</span>
+              </Link>
+            );
+          })}
           {futureNav.map((label) => (
             <div key={label} className="flex h-9 items-center gap-3 px-3 text-xs text-muted-foreground/45">
               <Boxes className="size-3.5" /><span className="flex-1">{label}</span>
@@ -161,7 +176,7 @@ export function AppShell({ children, userEmail }: { children: React.ReactNode; u
         <CommandList>
           <CommandEmpty>没有找到结果。</CommandEmpty>
           <CommandGroup heading="前往">
-            {primaryNav.map((item) => (
+            {[...primaryNav, ...expansionNav].map((item) => (
               <CommandItem key={item.href} onSelect={() => navigate(item.href)}>
                 <item.icon className="size-4" />{item.label}<ChevronRight className="ms-auto size-3" />
               </CommandItem>

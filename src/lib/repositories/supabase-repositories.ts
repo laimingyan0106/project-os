@@ -4,7 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Agent,
   InboxItem,
+  KnowledgeItem,
   Project,
+  PromptAsset,
+  PromptVersion,
   Workflow,
   WorkflowSummary,
 } from "@/lib/project-os";
@@ -12,7 +15,9 @@ import type {
   AgentRepository,
   CloudState,
   InboxRepository,
+  KnowledgeRepository,
   ProjectRepository,
+  PromptRepository,
   WorkflowRepository,
 } from "@/lib/repositories/contracts";
 
@@ -81,6 +86,54 @@ function agentFromRow(row: Row): Agent {
     tools,
     nextAgent: row.next_agent_id ? String(row.next_agent_id) : undefined,
     status: row.status as Agent["status"],
+    updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function promptVersionFromRow(row: Row): PromptVersion {
+  return {
+    id: String(row.id),
+    promptId: String(row.prompt_id),
+    version: Number(row.version),
+    content: String(row.content ?? ""),
+    model: String(row.model ?? ""),
+    variables: stringArray(row.variables),
+    notes: String(row.notes ?? ""),
+    createdAt: String(row.created_at ?? ""),
+  };
+}
+
+function promptFromRow(row: Row, currentVersion?: PromptVersion): PromptAsset {
+  return {
+    id: String(row.id),
+    projectId: row.project_id ? String(row.project_id) : undefined,
+    title: String(row.title ?? ""),
+    description: String(row.description ?? ""),
+    tags: stringArray(row.tags),
+    currentVersionId: row.current_version_id
+      ? String(row.current_version_id)
+      : undefined,
+    currentVersion,
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+function knowledgeFromRow(row: Row): KnowledgeItem {
+  return {
+    id: String(row.id),
+    projectId: row.project_id ? String(row.project_id) : undefined,
+    title: String(row.title ?? ""),
+    content: String(row.content ?? ""),
+    type: row.type as KnowledgeItem["type"],
+    tags: stringArray(row.tags),
+    sourceUrl: row.source_url ? String(row.source_url) : undefined,
+    archivedAt: row.archived_at ? String(row.archived_at) : undefined,
+    createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? ""),
   };
 }
@@ -497,12 +550,197 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
   }
 }
 
+class SupabasePromptRepository implements PromptRepository {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly userId: string,
+  ) {}
+
+  private async attachVersions(rows: Row[]) {
+    const versionIds = rows
+      .map((row) => row.current_version_id ? String(row.current_version_id) : "")
+      .filter(Boolean);
+    if (versionIds.length === 0) return rows.map((row) => promptFromRow(row));
+
+    const { data, error } = await this.client
+      .from("prompt_versions")
+      .select("*")
+      .eq("user_id", this.userId)
+      .in("id", versionIds);
+    assertNoError(error);
+    const versions = new Map(
+      (data ?? []).map((row) => {
+        const version = promptVersionFromRow(row as Row);
+        return [version.id, version] as const;
+      }),
+    );
+    return rows.map((row) => promptFromRow(
+      row,
+      row.current_version_id
+        ? versions.get(String(row.current_version_id))
+        : undefined,
+    ));
+  }
+
+  async list(query = "") {
+    const { data, error } = await this.client.rpc("search_prompts", {
+      p_query: query,
+    });
+    assertNoError(error);
+    return this.attachVersions((data ?? []) as Row[]);
+  }
+
+  async get(id: string) {
+    const { data, error } = await this.client
+      .from("prompts")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+    assertNoError(error);
+    if (!data) return null;
+    return (await this.attachVersions([data as Row]))[0] ?? null;
+  }
+
+  async create(
+    input: Omit<
+      PromptAsset,
+      "currentVersionId" | "currentVersion" | "createdAt" | "updatedAt"
+    >,
+  ) {
+    const { data, error } = await this.client
+      .from("prompts")
+      .insert({
+        id: input.id,
+        user_id: this.userId,
+        project_id: input.projectId ?? null,
+        title: input.title,
+        description: input.description,
+        tags: input.tags,
+      })
+      .select()
+      .single();
+    assertNoError(error);
+    return promptFromRow(data as Row);
+  }
+
+  async updateMetadata(prompt: PromptAsset) {
+    const { data, error } = await this.client
+      .from("prompts")
+      .update({
+        project_id: prompt.projectId ?? null,
+        title: prompt.title,
+        description: prompt.description,
+        tags: prompt.tags,
+      })
+      .eq("user_id", this.userId)
+      .eq("id", prompt.id)
+      .select()
+      .single();
+    assertNoError(error);
+    return promptFromRow(data as Row, prompt.currentVersion);
+  }
+
+  async createVersion(
+    promptId: string,
+    input: Pick<PromptVersion, "content" | "model" | "variables" | "notes">,
+  ) {
+    const { data, error } = await this.client.rpc("publish_prompt_version", {
+      p_prompt_id: promptId,
+      p_content: input.content,
+      p_model: input.model,
+      p_variables: input.variables,
+      p_notes: input.notes,
+    });
+    assertNoError(error);
+    return promptVersionFromRow(data as Row);
+  }
+
+  async remove(id: string) {
+    const { error } = await this.client
+      .from("prompts")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("id", id);
+    assertNoError(error);
+  }
+}
+
+class SupabaseKnowledgeRepository implements KnowledgeRepository {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly userId: string,
+  ) {}
+
+  async list(query = "") {
+    const { data, error } = await this.client.rpc("search_knowledge_items", {
+      p_query: query,
+    });
+    assertNoError(error);
+    return ((data ?? []) as Row[]).map((row) => knowledgeFromRow(row));
+  }
+
+  async get(id: string) {
+    const { data, error } = await this.client
+      .from("knowledge_items")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+    assertNoError(error);
+    return data ? knowledgeFromRow(data as Row) : null;
+  }
+
+  async save(item: KnowledgeItem) {
+    const { data, error } = await this.client
+      .from("knowledge_items")
+      .upsert({
+        id: item.id,
+        user_id: this.userId,
+        project_id: item.projectId ?? null,
+        title: item.title,
+        content: item.content,
+        type: item.type,
+        tags: item.tags,
+        source_url: item.sourceUrl ?? null,
+        archived_at: item.archivedAt ?? null,
+      })
+      .select()
+      .single();
+    assertNoError(error);
+    return knowledgeFromRow(data as Row);
+  }
+
+  async archive(id: string) {
+    const { data, error } = await this.client
+      .from("knowledge_items")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .select()
+      .single();
+    assertNoError(error);
+    return knowledgeFromRow(data as Row);
+  }
+
+  async remove(id: string) {
+    const { error } = await this.client
+      .from("knowledge_items")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("id", id);
+    assertNoError(error);
+  }
+}
+
 export function createRepositories(client: SupabaseClient, userId: string) {
   return {
     projects: new SupabaseProjectRepository(client, userId),
     inbox: new SupabaseInboxRepository(client, userId),
     agents: new SupabaseAgentRepository(client, userId),
     workflows: new SupabaseWorkflowRepository(client, userId),
+    prompts: new SupabasePromptRepository(client, userId),
+    knowledge: new SupabaseKnowledgeRepository(client, userId),
   };
 }
 
@@ -511,11 +749,13 @@ export async function loadCloudState(
   userId: string,
 ): Promise<CloudState> {
   const repositories = createRepositories(client, userId);
-  const [projects, inbox, agents, workflows] = await Promise.all([
+  const [projects, inbox, agents, workflows, prompts, knowledge] = await Promise.all([
     repositories.projects.list(),
     repositories.inbox.list(),
     repositories.agents.list(),
     repositories.workflows.list(),
+    repositories.prompts.list(),
+    repositories.knowledge.list(),
   ]);
-  return { projects, inbox, agents, workflows };
+  return { projects, inbox, agents, workflows, prompts, knowledge };
 }

@@ -23,6 +23,8 @@ export default async function WorkspaceLayout({
     inbox: [],
     agents: [],
     workflows: [],
+    prompts: [],
+    knowledge: [],
   };
   let initialCloudError: string | undefined;
   try {

@@ -11,3 +11,5 @@ Additional forward-only migrations:
 
 - `20260729_002_workflow_graph_rpc.sql`: transactional workflow graph saves.
 - `20260729_003_v1_snapshot_import.sql`: authenticated, idempotent v0.1 import.
+- `20260730_004_prompts_knowledge.sql`: Prompt version publishing, immutable
+  history, Prompt/Knowledge search indexes and hardened RLS.

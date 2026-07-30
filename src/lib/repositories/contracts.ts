@@ -1,7 +1,10 @@
 import type {
   Agent,
   InboxItem,
+  KnowledgeItem,
   Project,
+  PromptAsset,
+  PromptVersion,
   Workflow,
   WorkflowSummary,
 } from "@/lib/project-os";
@@ -40,9 +43,31 @@ export interface WorkflowRepository {
   remove(id: string): Promise<void>;
 }
 
+export interface PromptRepository {
+  list(query?: string): Promise<PromptAsset[]>;
+  get(id: string): Promise<PromptAsset | null>;
+  create(input: Omit<PromptAsset, "currentVersionId" | "currentVersion" | "createdAt" | "updatedAt">): Promise<PromptAsset>;
+  updateMetadata(prompt: PromptAsset): Promise<PromptAsset>;
+  createVersion(
+    promptId: string,
+    input: Pick<PromptVersion, "content" | "model" | "variables" | "notes">,
+  ): Promise<PromptVersion>;
+  remove(id: string): Promise<void>;
+}
+
+export interface KnowledgeRepository {
+  list(query?: string): Promise<KnowledgeItem[]>;
+  get(id: string): Promise<KnowledgeItem | null>;
+  save(item: KnowledgeItem): Promise<KnowledgeItem>;
+  archive(id: string): Promise<KnowledgeItem>;
+  remove(id: string): Promise<void>;
+}
+
 export interface CloudState {
   projects: Project[];
   inbox: InboxItem[];
   agents: Agent[];
   workflows: WorkflowSummary[];
+  prompts: PromptAsset[];
+  knowledge: KnowledgeItem[];
 }

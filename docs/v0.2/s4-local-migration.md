@@ -1,5 +1,8 @@
 # S4 local migration
 
+Status: Complete. The hosted acceptance run passed initial import and repeated
+submission of the same snapshot without duplicate business rows.
+
 ## Delivered
 
 - Strict parser for the historical `project-os:v1` JSON shape.

@@ -9,19 +9,26 @@ import {
   useState,
 } from "react";
 import {
+  archiveKnowledgeAction,
   archiveProjectAction,
+  createPromptAction,
   createWorkflowAction,
   duplicateWorkflowAction,
   getLocalMigrationStatusAction,
   importLegacyV1SnapshotAction,
   refreshCloudStateAction,
   removeAgentAction,
+  removeKnowledgeAction,
   removeInboxItemAction,
   removeProjectAction,
+  removePromptAction,
   removeWorkflowAction,
   saveAgentAction,
   saveInboxItemAction,
+  saveKnowledgeAction,
   saveProjectAction,
+  publishPromptVersionAction,
+  updatePromptMetadataAction,
 } from "@/app/(workspace)/cloud-actions";
 import { LocalMigrationDialog } from "@/components/project-os/local-migration-dialog";
 import {
@@ -31,7 +38,11 @@ import {
 import type {
   Agent,
   InboxItem,
+  KnowledgeItem,
   Project,
+  PromptAsset,
+  PromptCreateInput,
+  PromptVersionInput,
   WorkflowSummary,
 } from "@/lib/project-os";
 import {
@@ -75,6 +86,16 @@ interface StoreContextValue extends CloudState {
   }) => Promise<ActionResult<WorkflowSummary>>;
   duplicateWorkflow: (id: string) => Promise<ActionResult<WorkflowSummary>>;
   deleteWorkflow: (id: string) => Promise<ActionResult<null>>;
+  createPrompt: (input: PromptCreateInput) => Promise<ActionResult<PromptAsset>>;
+  updatePrompt: (prompt: PromptAsset) => Promise<ActionResult<PromptAsset>>;
+  publishPromptVersion: (
+    id: string,
+    input: PromptVersionInput,
+  ) => Promise<ActionResult<PromptAsset>>;
+  deletePrompt: (id: string) => Promise<ActionResult<null>>;
+  saveKnowledge: (item: KnowledgeItem) => Promise<ActionResult<KnowledgeItem>>;
+  archiveKnowledge: (id: string) => Promise<ActionResult<KnowledgeItem>>;
+  deleteKnowledge: (id: string) => Promise<ActionResult<null>>;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -382,6 +403,114 @@ export function ProjectOSProvider({
     return result;
   }, [beginCloudOperation, finishCloudOperation]);
 
+  const createPrompt = useCallback(async (input: PromptCreateInput) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，Prompt 尚未创建。");
+    }
+    const result = await createPromptAction(input);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        prompts: upsert(state.prompts, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const updatePrompt = useCallback(async (prompt: PromptAsset) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，Prompt 尚未保存。");
+    }
+    const result = await updatePromptMetadataAction(prompt);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        prompts: upsert(state.prompts, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const publishPromptVersion = useCallback(async (
+    id: string,
+    input: PromptVersionInput,
+  ) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，新版本尚未发布。");
+    }
+    const result = await publishPromptVersionAction(id, input);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        prompts: upsert(state.prompts, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const deletePrompt = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，Prompt 尚未删除。");
+    }
+    const result = await removePromptAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        prompts: state.prompts.filter((prompt) => prompt.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const saveKnowledge = useCallback(async (item: KnowledgeItem) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，知识条目尚未保存。");
+    }
+    const result = await saveKnowledgeAction(item);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        knowledge: upsert(state.knowledge, result.data),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const archiveKnowledge = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，知识条目尚未归档。");
+    }
+    const result = await archiveKnowledgeAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        knowledge: state.knowledge.filter((item) => item.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
+  const deleteKnowledge = useCallback(async (id: string) => {
+    if (!beginCloudOperation()) {
+      return actionError("NETWORK_ERROR", "当前处于离线状态，知识条目尚未删除。");
+    }
+    const result = await removeKnowledgeAction(id);
+    if (result.ok) {
+      setCloud((state) => ({
+        ...state,
+        knowledge: state.knowledge.filter((item) => item.id !== id),
+      }));
+    }
+    finishCloudOperation(result);
+    return result;
+  }, [beginCloudOperation, finishCloudOperation]);
+
   const importLocalSnapshot = useCallback(async (
     sourceJson: string,
     allowSeedImport: boolean,
@@ -442,12 +571,23 @@ export function ProjectOSProvider({
     createWorkflow,
     duplicateWorkflow,
     deleteWorkflow,
+    createPrompt,
+    updatePrompt,
+    publishPromptVersion,
+    deletePrompt,
+    saveKnowledge,
+    archiveKnowledge,
+    deleteKnowledge,
   }), [
+    archiveKnowledge,
     cloud,
+    createPrompt,
     createWorkflow,
     deleteAgent,
     deleteInboxItem,
     deleteProject,
+    deleteKnowledge,
+    deletePrompt,
     deleteWorkflow,
     duplicateWorkflow,
     lastSyncedAt,
@@ -458,9 +598,12 @@ export function ProjectOSProvider({
     removeProject,
     saveAgent,
     saveInboxItem,
+    saveKnowledge,
     saveProject,
+    publishPromptVersion,
     syncError,
     syncStatus,
+    updatePrompt,
   ]);
 
   return (

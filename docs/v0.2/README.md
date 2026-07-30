@@ -26,8 +26,8 @@ This directory tracks the incremental implementation defined by
 | S1 | Auth, session refresh, protected routes, profile | Complete |
 | S2 | Repository layer and cloud Projects/Inbox/Agents | Complete |
 | S3 | Workflow list, normalized graph and save states | Complete |
-| S4 | Idempotent v0.1 local migration | In progress |
-| S5 | Prompt Library and Knowledge Base | Pending |
+| S4 | Idempotent v0.1 local migration | Complete |
+| S5 | Prompt Library and Knowledge Base | In progress |
 | S6 | Skill Tree, Resources and Activity Log | Pending |
 | S7 | Security, accessibility, export and account deletion | Pending |
 
