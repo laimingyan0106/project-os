@@ -111,6 +111,7 @@ export function ProjectOSProvider({
     open: boolean;
     key: number;
     sourceJson?: string;
+    result?: LocalMigrationSummary;
   }>({ open: false, key: 0 });
   const [migrationError, setMigrationError] = useState<string>();
 
@@ -153,6 +154,7 @@ export function ProjectOSProvider({
       open: true,
       key: current.key + 1,
       sourceJson: detectedSource,
+      result: undefined,
     }));
   }, []);
 
@@ -195,6 +197,7 @@ export function ProjectOSProvider({
           open: true,
           key: current.key + 1,
           sourceJson: localSnapshot,
+          result: undefined,
         }));
       }
     });
@@ -408,6 +411,7 @@ export function ProjectOSProvider({
     }
 
     setLocalMigrationSummary(result.data);
+    setMigrationDialog((current) => ({ ...current, result: result.data }));
     setLocalMigrationStatus("success");
     window.sessionStorage.removeItem(MIGRATION_DISMISSED_KEY);
     await refreshCloudState();
@@ -468,7 +472,7 @@ export function ProjectOSProvider({
         initialSourceJson={migrationDialog.sourceJson}
         importing={localMigrationStatus === "importing"}
         error={migrationError}
-        summary={migrationDialog.open ? localMigrationSummary : undefined}
+        summary={migrationDialog.result}
         onOpenChange={(open) => {
           setMigrationDialog((current) => ({ ...current, open }));
         }}

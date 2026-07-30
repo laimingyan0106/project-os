@@ -47,6 +47,8 @@
   file/paste migration entry point.
 - Kept the migration entry available after success so the same snapshot can
   be resubmitted to verify server-side idempotency.
+- Reset the migration dialog result when it is reopened, while retaining the
+  completed-import summary on Settings.
 - Added a credential-free v0.1 test snapshot for migration acceptance checks.
 
 ### Added
