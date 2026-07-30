@@ -408,6 +408,10 @@ export function WorkflowView({
         </span>
       </div>
 
+      <div className="mb-3 rounded-lg border border-amber-300/20 bg-amber-300/8 px-3 py-2 text-xs text-amber-100 sm:hidden">
+        小屏幕可以查看工作流；编辑节点和连线时建议横屏或使用桌面设备。
+      </div>
+
       <Card className="h-[calc(100vh-260px)] min-h-[540px] overflow-hidden bg-card/55">
         <ReactFlow
           nodes={visibleNodes}

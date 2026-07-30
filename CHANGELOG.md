@@ -78,6 +78,21 @@
 - Added deterministic priority/status/update sorting, empty states and a
   six-Agent limit on the Dashboard relay.
 
+### S7 - Hardening and data lifecycle
+
+- Added account profile editing for display name and an HTTPS avatar URL.
+- Added a no-store JSON export route that queries every collection through the
+  current authenticated user's RLS session.
+- Added transaction-based workspace deletion guarded by `DELETE DATA`.
+- Added account deletion guarded by `DELETE`, current-password
+  reauthentication and a five-minute JWT freshness check.
+- Added CSP, anti-framing, MIME-sniffing, referrer, permissions, opener and
+  HSTS response headers.
+- Overrode Next.js transitive PostCSS and Sharp packages to patched versions
+  without applying npm audit's incompatible Next.js downgrade.
+- Added accessible destructive dialogs, labeled form errors, mobile navigation
+  labeling and the small-screen Workflow editing recommendation.
+
 ### Added
 
 - S0 baseline documentation, architecture decisions and incremental delivery constraints.

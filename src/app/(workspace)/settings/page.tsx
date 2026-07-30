@@ -10,5 +10,17 @@ export default async function SettingsPage() {
 
   if (!user) redirect("/login");
 
-  return <SettingsView userEmail={user.email ?? "已登录用户"} />;
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name,avatar_url")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return (
+    <SettingsView
+      userEmail={user.email ?? "已登录用户"}
+      initialDisplayName={String(profile?.display_name ?? "")}
+      initialAvatarUrl={profile?.avatar_url ? String(profile.avatar_url) : undefined}
+    />
+  );
 }

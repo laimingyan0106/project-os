@@ -15,3 +15,5 @@ Additional forward-only migrations:
   history, Prompt/Knowledge search indexes and hardened RLS.
 - `20260730_005_skills_resources_activity.sql`: Skill hierarchy and experience
   transactions, Resource ownership checks and safe Activity Log triggers.
+- `20260731_006_data_lifecycle.sql`: confirmation-gated transactional data
+  deletion and recently reauthenticated account deletion.

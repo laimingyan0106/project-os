@@ -28,8 +28,8 @@ This directory tracks the incremental implementation defined by
 | S3 | Workflow list, normalized graph and save states | Complete |
 | S4 | Idempotent v0.1 local migration | Complete |
 | S5 | Prompt Library and Knowledge Base | Complete |
-| S6 | Skill Tree, Resources and Activity Log | In progress |
-| S7 | Security, accessibility, export and account deletion | Pending |
+| S6 | Skill Tree, Resources and Activity Log | Complete |
+| S7 | Security, accessibility, export and account deletion | In progress |
 
 ## Release gates
 

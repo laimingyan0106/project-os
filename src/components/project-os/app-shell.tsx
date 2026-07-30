@@ -134,7 +134,11 @@ export function AppShell({ children, userEmail }: { children: React.ReactNode; u
       <div className="lg:col-start-2">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/78 px-4 backdrop-blur-xl md:px-7">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild><Button variant="ghost" size="icon-sm" className="lg:hidden"><Menu /></Button></SheetTrigger>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="lg:hidden" aria-label="打开导航菜单">
+                <Menu />
+              </Button>
+            </SheetTrigger>
             <SheetContent side="left" className="w-[280px] p-0"><SheetTitle className="sr-only">导航</SheetTitle><Navigation userEmail={userEmail} onNavigate={() => setMobileOpen(false)} /></SheetContent>
           </Sheet>
           <button onClick={() => setSearchOpen(true)} className="flex h-9 min-w-0 max-w-md flex-1 items-center gap-2 rounded-md border bg-card/60 px-3 text-left text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground">

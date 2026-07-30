@@ -46,13 +46,26 @@ function SubmitButton({ pending, children }: { pending: boolean; children: React
   );
 }
 
-export function LoginForms({ nextPath, initialError }: { nextPath: string; initialError?: string }) {
+export function LoginForms({
+  nextPath,
+  initialError,
+  initialNotice,
+}: {
+  nextPath: string;
+  initialError?: string;
+  initialNotice?: string;
+}) {
   const [mode, setMode] = useState<"password" | "magic">("password");
   const [loginState, loginFormAction, loginPending] = useActionState(loginAction, initialAuthState);
   const [magicState, magicFormAction, magicPending] = useActionState(magicLinkAction, initialAuthState);
 
   return (
     <div className="space-y-5">
+      {initialNotice ? (
+        <div role="status" className="rounded-lg border border-emerald-400/20 bg-emerald-400/8 px-3 py-2.5 text-sm text-emerald-200">
+          {initialNotice}
+        </div>
+      ) : null}
       {initialError ? (
         <div className="rounded-lg border border-destructive/20 bg-destructive/8 px-3 py-2.5 text-sm text-destructive">
           {initialError}

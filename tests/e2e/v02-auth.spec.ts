@@ -13,6 +13,7 @@ const protectedRoutes = [
   "/resources",
   "/activity",
   "/settings",
+  "/api/export",
 ];
 
 for (const path of protectedRoutes) {
@@ -30,6 +31,13 @@ test("login supports password and Magic Link modes", async ({ page }) => {
   await page.getByRole("button", { name: "Magic Link" }).click();
   await expect(page.getByText("我们会发送一次性登录链接，无需输入密码。")).toBeVisible();
   await expect(page.getByRole("button", { name: "发送登录链接" })).toBeVisible();
+});
+
+test("deleted-account redirect confirms local completion", async ({ page }) => {
+  await page.goto("/login?account_deleted=1");
+  await expect(
+    page.getByRole("status").filter({ hasText: "账户及其云端数据已永久删除。" }),
+  ).toBeVisible();
 });
 
 test("signup validates credentials before contacting Supabase", async ({ page }) => {

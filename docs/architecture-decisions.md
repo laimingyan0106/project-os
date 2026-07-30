@@ -71,3 +71,17 @@ metrics are based on persisted facts rather than client assumptions.
 Activity summaries contain only entity type, identifier, action and a short
 title/name. Prompt and Knowledge bodies, resource notes, tokens and secrets are
 never copied into the activity stream.
+
+## ADR-007: Destructive lifecycle operations are database transactions
+
+**Status:** Accepted for v0.2
+
+Workspace deletion and account deletion execute in PostgreSQL functions rather
+than client-side loops. Both functions derive ownership from `auth.uid()` and
+require exact confirmation text. Account deletion additionally rejects JWTs
+older than five minutes; the Server Action obtains a fresh token by verifying
+the current password immediately before the RPC call.
+
+Exports use an authenticated Route Handler because they are bulk downloads.
+Every table query includes the current user identifier and still passes through
+RLS. Export responses are private, no-store attachments.

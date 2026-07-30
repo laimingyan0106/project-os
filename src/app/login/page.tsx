@@ -6,7 +6,11 @@ import { safeNextPath } from "@/lib/auth";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{
+    next?: string;
+    error?: string;
+    account_deleted?: string;
+  }>;
 }) {
   const params = await searchParams;
   return (
@@ -16,7 +20,11 @@ export default async function LoginPage({
       description="使用邮箱密码或一次性 Magic Link 登录。"
       footer={<>还没有账户？ <Link href="/signup" className="text-primary hover:underline">创建账户</Link></>}
     >
-      <LoginForms nextPath={safeNextPath(params.next)} initialError={params.error} />
+      <LoginForms
+        nextPath={safeNextPath(params.next)}
+        initialError={params.error}
+        initialNotice={params.account_deleted === "1" ? "账户及其云端数据已永久删除。" : undefined}
+      />
     </AuthFrame>
   );
 }
