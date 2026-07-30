@@ -45,9 +45,9 @@ const actionLabel: Record<string, string> = {
 };
 
 export function ActivityView() {
-  const { activities } = useProjectOS();
+  const { activities, projects, inbox } = useProjectOS();
   const [entity, setEntity] = useState("all");
-  const metrics = getWeeklyActivityMetrics(activities);
+  const metrics = getWeeklyActivityMetrics(activities, { projects, inbox });
   const filtered = useMemo(
     () => activities.filter((item) => entity === "all" || item.entityType === entity),
     [activities, entity],

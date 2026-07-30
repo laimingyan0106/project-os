@@ -1,4 +1,9 @@
-import type { ActivityLog, Project, Skill } from "@/lib/project-os";
+import type {
+  ActivityLog,
+  InboxItem,
+  Project,
+  Skill,
+} from "@/lib/project-os";
 
 const SECRET_PATTERNS = [
   /(?:api[_-]?key|access[_-]?token|secret|password)\s*[:=]\s*\S{8,}/i,
@@ -62,8 +67,13 @@ export function sortDashboardProjects(projects: Project[]) {
 
 export function getWeeklyActivityMetrics(
   activities: ActivityLog[],
-  now = new Date(),
+  options: {
+    projects: Project[];
+    inbox: InboxItem[];
+    now?: Date;
+  },
 ) {
+  const now = options.now ?? new Date();
   const start = new Date(now);
   const day = (start.getDay() + 6) % 7;
   start.setDate(start.getDate() - day);
@@ -72,14 +82,38 @@ export function getWeeklyActivityMetrics(
   const current = activities.filter(
     (activity) => Date.parse(activity.createdAt) >= start.getTime(),
   );
-  const completedProjects = current.filter(
-    (activity) =>
-      activity.entityType === "projects" && activity.action === "completed",
-  ).length;
-  const processedInbox = current.filter(
-    (activity) =>
-      activity.entityType === "inbox_items" && activity.action === "processed",
-  ).length;
+  const doneProjectIds = new Set(
+    options.projects
+      .filter((project) => project.status === "done")
+      .map((project) => project.id),
+  );
+  const processedInboxIds = new Set(
+    options.inbox
+      .filter((item) => item.processed || item.status === "processed")
+      .map((item) => item.id),
+  );
+  const completedProjects = new Set(
+    current
+      .filter(
+        (activity) =>
+          activity.entityType === "projects"
+          && activity.action === "completed"
+          && activity.entityId
+          && doneProjectIds.has(activity.entityId),
+      )
+      .map((activity) => activity.entityId),
+  ).size;
+  const processedInbox = new Set(
+    current
+      .filter(
+        (activity) =>
+          activity.entityType === "inbox_items"
+          && activity.action === "processed"
+          && activity.entityId
+          && processedInboxIds.has(activity.entityId),
+      )
+      .map((activity) => activity.entityId),
+  ).size;
 
   return {
     total: current.length,

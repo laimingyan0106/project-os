@@ -72,6 +72,9 @@
   Prompt bodies, Knowledge bodies, resource notes, tokens or secrets.
 - Replaced the Dashboard hard-coded weekly percentage with real weekly Project
   completions and processed Inbox activity.
+- Dashboard weekly completion now counts unique entities that are still in a
+  completed/processed state, so reverting a Project to active removes it from
+  the current completion total while preserving its Activity history.
 - Added deterministic priority/status/update sorting, empty states and a
   six-Agent limit on the Dashboard relay.
 

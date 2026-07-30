@@ -35,7 +35,7 @@ const statusClass = {
 export function DashboardView() {
   const { projects, agents, inbox, activities } = useProjectOS();
   const unread = inbox.filter((item) => !item.processed).length;
-  const weekly = getWeeklyActivityMetrics(activities);
+  const weekly = getWeeklyActivityMetrics(activities, { projects, inbox });
   const priorityProjects = sortDashboardProjects(projects).slice(0, 4);
   const visibleAgents = agents.slice(0, 6);
   const stats = [

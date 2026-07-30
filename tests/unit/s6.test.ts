@@ -50,11 +50,60 @@ describe("S6 helpers", () => {
       { id: "2", entityType: "inbox_items", action: "processed", summary: "B", metadata: {}, createdAt: "2026-07-30T10:00:00.000Z" },
       { id: "3", entityType: "projects", action: "completed", summary: "Old", metadata: {}, createdAt: "2026-07-20T10:00:00.000Z" },
     ];
-    expect(getWeeklyActivityMetrics(activities, new Date("2026-07-30T12:00:00.000Z"))).toMatchObject({
+    const projects: Project[] = [{
+      id: "project-1",
+      title: "A",
+      goal: "",
+      status: "done",
+      priority: "medium",
+      updatedAt: timestamp,
+    }];
+    const inbox = [{
+      id: "inbox-1",
+      title: "B",
+      content: "",
+      kind: "task" as const,
+      processed: true,
+      status: "processed" as const,
+      createdAt: timestamp,
+    }];
+    activities[0].entityId = "project-1";
+    activities[1].entityId = "inbox-1";
+    expect(getWeeklyActivityMetrics(activities, {
+      projects,
+      inbox,
+      now: new Date("2026-07-30T12:00:00.000Z"),
+    })).toMatchObject({
       total: 2,
       completedProjects: 1,
       processedInbox: 1,
       completedWork: 2,
     });
+  });
+
+  it("does not count a project that was completed this week but is active again", () => {
+    const activities: ActivityLog[] = [{
+      id: "event-1",
+      entityType: "projects",
+      entityId: "project-1",
+      action: "completed",
+      summary: "A",
+      metadata: {},
+      createdAt: "2026-07-29T10:00:00.000Z",
+    }];
+    const projects: Project[] = [{
+      id: "project-1",
+      title: "A",
+      goal: "",
+      status: "active",
+      priority: "medium",
+      updatedAt: timestamp,
+    }];
+
+    expect(getWeeklyActivityMetrics(activities, {
+      projects,
+      inbox: [],
+      now: new Date("2026-07-30T12:00:00.000Z"),
+    }).completedProjects).toBe(0);
   });
 });
