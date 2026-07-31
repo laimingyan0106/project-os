@@ -88,7 +88,7 @@ export async function confirmSignupAction(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
-    type: "signup",
+    type: "email",
   });
 
   if (error) {

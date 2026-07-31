@@ -16,7 +16,7 @@ export default async function ConfirmSignupPage({
 }) {
   const params = await searchParams;
   const tokenHash = params.token_hash ?? "";
-  const canConfirm = Boolean(tokenHash && params.type === "signup");
+  const canConfirm = Boolean(tokenHash && params.type === "email");
 
   return (
     <AuthFrame

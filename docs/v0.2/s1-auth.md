@@ -45,7 +45,7 @@ after the person clicks the confirmation button. This prevents email link
 prefetchers from consuming the token.
 
 ```html
-<a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup">
+<a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">
   确认邮箱
 </a>
 ```
