@@ -157,7 +157,13 @@ export async function deleteAccountAction(input: {
     p_confirmation: parsed.data.confirmation,
   });
   if (error) {
-    return actionError("UNKNOWN_ERROR", "账户删除失败，请稍后重试。");
+    const diagnosticCode = (error.code || "RPC_UNKNOWN")
+      .replace(/[^A-Z0-9_]/gi, "")
+      .slice(0, 32);
+    return actionError(
+      "UNKNOWN_ERROR",
+      `账户删除失败，账户未被删除。诊断码：${diagnosticCode}`,
+    );
   }
 
   await supabase.auth.signOut({ scope: "local" });

@@ -6,6 +6,13 @@ const migration = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260731_006_data_lifecycle.sql"),
   "utf8",
 ).toLowerCase();
+const accountDeletionGuard = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/20260731_007_account_deletion_activity_guard.sql",
+  ),
+  "utf8",
+).toLowerCase();
 const settingsActions = readFileSync(
   resolve(process.cwd(), "src/app/(workspace)/settings/settings-actions.ts"),
   "utf8",
@@ -46,6 +53,19 @@ describe("S7 data lifecycle and security boundaries", () => {
     expect(settingsActions).toContain("persistSession: false".toLowerCase());
     expect(settingsActions).not.toContain("service_role");
     expect(settingsActions).not.toContain("console.log");
+  });
+
+  it("does not recreate activity rows during the account deletion cascade", () => {
+    expect(accountDeletionGuard).toContain(
+      "current_setting('project_os.suppress_activity', true) = 'on'",
+    );
+    expect(accountDeletionGuard).toContain(
+      "set_config('project_os.suppress_activity', 'on', true)",
+    );
+    expect(accountDeletionGuard).toContain(
+      "delete from auth.users where id = v_user_id",
+    );
+    expect(accountDeletionGuard).not.toContain("session_replication_role");
   });
 
   it("exports every table through current-user RLS filters", () => {

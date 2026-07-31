@@ -17,3 +17,5 @@ Additional forward-only migrations:
   transactions, Resource ownership checks and safe Activity Log triggers.
 - `20260731_006_data_lifecycle.sql`: confirmation-gated transactional data
   deletion and recently reauthenticated account deletion.
+- `20260731_007_account_deletion_activity_guard.sql`: suppresses Activity Log
+  writes during the account-deletion cascade.

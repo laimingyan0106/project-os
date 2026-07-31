@@ -88,6 +88,8 @@
   reauthentication and a five-minute JWT freshness check.
 - Ensured the deletion RPC uses the fresh access token returned by password
   reauthentication instead of the request's older cookie-backed session.
+- Prevented Activity Log triggers from recreating user-owned rows during the
+  `auth.users` account-deletion cascade.
 - Added CSP, anti-framing, MIME-sniffing, referrer, permissions, opener and
   HSTS response headers.
 - Overrode Next.js transitive PostCSS and Sharp packages to patched versions
