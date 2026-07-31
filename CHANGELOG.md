@@ -86,6 +86,8 @@
 - Added transaction-based workspace deletion guarded by `DELETE DATA`.
 - Added account deletion guarded by `DELETE`, current-password
   reauthentication and a five-minute JWT freshness check.
+- Ensured the deletion RPC uses the fresh access token returned by password
+  reauthentication instead of the request's older cookie-backed session.
 - Added CSP, anti-framing, MIME-sniffing, referrer, permissions, opener and
   HSTS response headers.
 - Overrode Next.js transitive PostCSS and Sharp packages to patched versions

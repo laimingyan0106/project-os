@@ -40,6 +40,11 @@ describe("S7 data lifecycle and security boundaries", () => {
     expect(migration).toContain("interval '5 minutes'");
     expect(migration).toContain("delete from auth.users where id = v_user_id");
     expect(settingsActions).toContain("signinwithpassword");
+    expect(settingsActions).toContain(
+      "authorization: `bearer ${reauthenticated.session.access_token}`",
+    );
+    expect(settingsActions).toContain("persistSession: false".toLowerCase());
+    expect(settingsActions).not.toContain("service_role");
     expect(settingsActions).not.toContain("console.log");
   });
 

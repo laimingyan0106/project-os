@@ -1,7 +1,9 @@
 "use server";
 
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { actionError, type ActionResult } from "@/lib/action-result";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
 export interface ProfileSettings {
@@ -128,12 +130,30 @@ export async function deleteAccountAction(input: {
   if (
     reauthError
     || !reauthenticated.user
+    || !reauthenticated.session
     || reauthenticated.user.id !== user.id
   ) {
     return actionError("FORBIDDEN", "当前密码不正确，账户没有删除。");
   }
 
-  const { error } = await supabase.rpc("delete_own_account", {
+  // Use the access token issued by the password check explicitly. The SSR
+  // client can still carry the request's older cookie-backed token until the
+  // Server Action response commits its updated cookies.
+  const { url, publishableKey } = getSupabaseConfig();
+  const recentlyAuthenticated = createSupabaseClient(url, publishableKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${reauthenticated.session.access_token}`,
+      },
+    },
+  });
+
+  const { error } = await recentlyAuthenticated.rpc("delete_own_account", {
     p_confirmation: parsed.data.confirmation,
   });
   if (error) {
