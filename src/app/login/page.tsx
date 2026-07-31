@@ -10,6 +10,7 @@ export default async function LoginPage({
     next?: string;
     error?: string;
     account_deleted?: string;
+    confirmation_link?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -23,7 +24,13 @@ export default async function LoginPage({
       <LoginForms
         nextPath={safeNextPath(params.next)}
         initialError={params.error}
-        initialNotice={params.account_deleted === "1" ? "账户及其云端数据已永久删除。" : undefined}
+        initialNotice={
+          params.account_deleted === "1"
+            ? "账户及其云端数据已永久删除。"
+            : params.confirmation_link === "used"
+              ? "该确认链接已经使用或过期。如果邮箱已经确认，请直接使用密码登录；未确认时请重新注册以获取新邮件。"
+              : undefined
+        }
       />
     </AuthFrame>
   );

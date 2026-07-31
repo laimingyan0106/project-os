@@ -42,6 +42,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 4. `supabase/migrations/20260730_004_prompts_knowledge.sql`
 5. `supabase/migrations/20260730_005_skills_resources_activity.sql`
 6. `supabase/migrations/20260731_006_data_lifecycle.sql`
+7. `supabase/migrations/20260731_007_account_deletion_activity_guard.sql`
 
 在 Supabase Auth 中配置站点 URL、允许的 Redirect URLs、邮件登录、密码登录和恢复邮件模板。所有业务表都启用 RLS。
 

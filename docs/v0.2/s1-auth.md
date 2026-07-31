@@ -37,6 +37,21 @@ The Reset Password template must link to the server confirmation route:
 The application supplies `/auth/confirm?next=/auth/update-password` as
 `RedirectTo`. This avoids browser-fragment and same-device PKCE dependencies.
 
+## Required Supabase signup confirmation template
+
+The Confirm signup template must send the token hash to the application's
+confirmation screen. A plain GET only displays the screen; the token is used
+after the person clicks the confirmation button. This prevents email link
+prefetchers from consuming the token.
+
+```html
+<a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup">
+  确认邮箱
+</a>
+```
+
+The application supplies `/auth/confirm-signup?next=/` as `RedirectTo`.
+
 ## Acceptance evidence
 
 - A real email confirmation completed against the configured Supabase project.

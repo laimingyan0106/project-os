@@ -90,6 +90,10 @@
   reauthentication instead of the request's older cookie-backed session.
 - Prevented Activity Log triggers from recreating user-owned rows during the
   `auth.users` account-deletion cascade.
+- Added an explicit signup-confirmation button so email prefetchers cannot
+  consume confirmation tokens through a plain page request.
+- Treats repeated callbacks as successful when a valid session already exists
+  and gives confirmed users a direct login path for used links.
 - Added CSP, anti-framing, MIME-sniffing, referrer, permissions, opener and
   HSTS response headers.
 - Overrode Next.js transitive PostCSS and Sharp packages to patched versions

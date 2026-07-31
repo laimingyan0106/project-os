@@ -62,7 +62,7 @@ export async function signupAction(
   const { error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
-    options: { emailRedirectTo: `${origin}/auth/callback?next=/` },
+    options: { emailRedirectTo: `${origin}/auth/confirm-signup?next=/` },
   });
 
   if (error) {
@@ -73,6 +73,31 @@ export async function signupAction(
     status: "success",
     message: "确认邮件已发送。请打开邮件完成验证后再登录。",
   };
+}
+
+export async function confirmSignupAction(formData: FormData) {
+  const tokenHash = String(formData.get("tokenHash") ?? "");
+  const nextPath = safeNextPath(String(formData.get("next") ?? "/"));
+
+  if (!tokenHash || tokenHash.length > 512) {
+    redirect(
+      "/login?confirmation_link=used",
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "signup",
+  });
+
+  if (error) {
+    redirect(
+      "/login?confirmation_link=used",
+    );
+  }
+
+  redirect(nextPath);
 }
 
 export async function magicLinkAction(

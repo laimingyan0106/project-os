@@ -57,7 +57,16 @@ test("invalid email callback provides a recovery path", async ({ page }) => {
   await expect(
     page.getByRole("alert").filter({ hasText: "登录链接无效、已过期或已经使用" }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "重新申请密码重置" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "如果已完成确认，直接登录" })).toBeVisible();
+});
+
+test("signup confirmation requires an explicit person action", async ({ page }) => {
+  await page.goto("/auth/confirm-signup");
+  await expect(page.getByRole("heading", { name: "确认你的邮箱" })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "确认链接不完整" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "返回登录" })).toBeVisible();
 });
 
 test("invalid token-hash recovery link returns to password recovery", async ({ page }) => {

@@ -8,6 +8,7 @@ const publicRoutes = [
   "/forgot-password",
   "/auth/callback",
   "/auth/confirm",
+  "/auth/confirm-signup",
   "/auth/update-password",
 ];
 

@@ -44,7 +44,11 @@ export function AuthCallback({ nextPath }: { nextPath: string }) {
       let authError: Error | null = null;
 
       if (callbackErrorCode) {
-        authError = new Error(callbackErrorCode);
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        authError = session ? null : (sessionError ?? new Error(callbackErrorCode));
       } else if (tokenHash && otpType && emailOtpTypes.has(otpType as EmailOtpType)) {
         const { error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
@@ -87,7 +91,7 @@ export function AuthCallback({ nextPath }: { nextPath: string }) {
           <span>{error}</span>
         </div>
         <Button asChild variant="outline" size="lg" className="h-10 w-full">
-          <Link href="/forgot-password">重新申请密码重置</Link>
+          <Link href="/login">如果已完成确认，直接登录</Link>
         </Button>
       </div>
     );
